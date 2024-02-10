@@ -25,7 +25,7 @@ $ guardrails hub install hub://guardrails/competitor-check
 ```python
 from guardrails.hub import CompetitorCheck
 competitor_check = CompetitorCheck(
-	competitors_list=["name1", "name2",]
+	competitors=["name1", "name2",]
 	on_fail="noop"
 )
 
