@@ -1,7 +1,7 @@
 [project]
-name = "regexmatch"
+name = "competitor_check"
 version = "0.0.0"
-description = "Template repo for Guardrails Hub validators."
+description = "Validates that LLM-generated text is not naming any competitors from a given list."
 authors = [
     {name = "Guardrails AI", email = "contact@guardrailsai.com"}
 ]
@@ -9,7 +9,8 @@ license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">= 3.8"
 dependencies = [
-    "rstr",
+    "nltk",
+    "spacy",
     "guardrails-ai>=0.3.2"
 ]
 

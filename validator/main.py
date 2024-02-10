@@ -1,10 +1,8 @@
 import re
-import string
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
 
-import rstr
-
-from guardrails.validator_base import (
+from guardrails.logger import logger
+from guardrails.validators import (
     FailResult,
     PassResult,
     ValidationResult,
@@ -12,60 +10,165 @@ from guardrails.validator_base import (
     register_validator,
 )
 
+try:
+    import nltk  # type: ignore
+except ImportError:
+    nltk = None  # type: ignore
 
-@register_validator(name="guardrails/regex_match", data_type="string")
-class RegexMatch(Validator):
-    """Validates that a value matches a regular expression.
+if nltk is not None:
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
 
-    **Key Properties**
+try:
+    import spacy
+except ImportError:
+    spacy = None
 
-    | Property                      | Description                       |
-    | ----------------------------- | --------------------------------- |
-    | Name for `format` attribute   | `regex_match`                     |
-    | Supported data types          | `string`                          |
-    | Programmatic fix              | Generate a string that matches the regular expression |
+
+@register_validator(name="guardrails/competitor_check", data_type="string")
+class CompetitorCheck(Validator):
+    """Validates that LLM-generated text is not naming any competitors from a
+    given list.
+
+    In order to use this validator you need to provide an extensive list of the
+    competitors you want to avoid naming including all common variations.
 
     Args:
-        regex: Str regex pattern
-        match_type: Str in {"search", "fullmatch"} for a regex search or full-match option
-    """  # noqa
+        competitors (List[str]): List of competitors you want to avoid naming
+    """
 
     def __init__(
         self,
-        regex: str,
-        match_type: Optional[str] = None,
+        competitors: List[str],
         on_fail: Optional[Callable] = None,
     ):
-        # todo -> something forces this to be passed as kwargs and therefore xml-ized.
-        # match_types = ["fullmatch", "search"]
-
-        if match_type is None:
-            match_type = "fullmatch"
-        assert match_type in [
-            "fullmatch",
-            "search",
-        ], 'match_type must be in ["fullmatch", "search"]'
-
-        super().__init__(on_fail=on_fail, match_type=match_type, regex=regex)
-        self._regex = regex
-        self._match_type = match_type
-
-    def validate(self, value: Any, metadata: Dict) -> ValidationResult:
-        p = re.compile(self._regex)
-        """Validates that value matches the provided regular expression."""
-        # Pad matching string on either side for fix
-        # example if we are performing a regex search
-        str_padding = (
-            "" if self._match_type == "fullmatch" else rstr.rstr(string.ascii_lowercase)
-        )
-        self._fix_str = str_padding + rstr.xeger(self._regex) + str_padding
-
-        if not getattr(p, self._match_type)(value):
-            return FailResult(
-                error_message=f"Result must match {self._regex}",
-                fix_value=self._fix_str,
+        super().__init__(competitors=competitors, on_fail=on_fail)
+        self._competitors = competitors
+        model = "en_core_web_trf"
+        if spacy is None:
+            raise ImportError(
+                "You must install spacy in order to use the CompetitorCheck validator."
             )
-        return PassResult()
 
-    def to_prompt(self, with_keywords: bool = True) -> str:
-        return "results should match " + self._regex
+        if not spacy.util.is_package(model):
+            logger.info(
+                f"Spacy model {model} not installed. "
+                "Download should start now and take a few minutes."
+            )
+            spacy.cli.download(model)  # type: ignore
+
+        self.nlp = spacy.load(model)
+
+    def exact_match(self, text: str, competitors: List[str]) -> List[str]:
+        """Performs exact match to find competitors from a list in a given
+        text.
+
+        Args:
+            text (str): The text to search for competitors.
+            competitors (list): A list of competitor entities to match.
+
+        Returns:
+            list: A list of matched entities.
+        """
+
+        found_entities = []
+        for entity in competitors:
+            pattern = rf"\b{re.escape(entity)}\b"
+            match = re.search(pattern.lower(), text.lower())
+            if match:
+                found_entities.append(entity)
+        return found_entities
+
+    def perform_ner(self, text: str, nlp) -> List[str]:
+        """Performs named entity recognition on text using a provided NLP
+        model.
+
+        Args:
+            text (str): The text to perform named entity recognition on.
+            nlp: The NLP model to use for entity recognition.
+
+        Returns:
+            entities: A list of entities found.
+        """
+
+        doc = nlp(text)
+        entities = []
+        for ent in doc.ents:
+            entities.append(ent.text)
+        return entities
+
+    def is_entity_in_list(self, entities: List[str], competitors: List[str]) -> List:
+        """Checks if any entity from a list is present in a given list of
+        competitors.
+
+        Args:
+            entities (list): A list of entities to check
+            competitors (list): A list of competitor names to match
+
+        Returns:
+            List: List of found competitors
+        """
+
+        found_competitors = []
+        for entity in entities:
+            for item in competitors:
+                pattern = rf"\b{re.escape(item)}\b"
+                match = re.search(pattern.lower(), entity.lower())
+                if match:
+                    found_competitors.append(item)
+        return found_competitors
+
+    def validate(self, value: str, metadata=Dict) -> ValidationResult:
+        """Checks a text to find competitors' names in it.
+
+        While running, store sentences naming competitors and generate a fixed output
+        filtering out all flagged sentences.
+
+        Args:
+            value (str): The value to be validated.
+            metadata (Dict, optional): Additional metadata. Defaults to empty dict.
+
+        Returns:
+            ValidationResult: The validation result.
+        """
+
+        if nltk is None:
+            raise ImportError(
+                "`nltk` library is required for `competitors-check` validator. "
+                "Please install it with `poetry add nltk`."
+            )
+        sentences = nltk.sent_tokenize(value)
+        flagged_sentences = []
+        filtered_sentences = []
+        list_of_competitors_found = []
+
+        for sentence in sentences:
+            entities = self.exact_match(sentence, self._competitors)
+            if entities:
+                ner_entities = self.perform_ner(sentence, self.nlp)
+                found_competitors = self.is_entity_in_list(ner_entities, entities)
+
+                if found_competitors:
+                    flagged_sentences.append((found_competitors, sentence))
+                    list_of_competitors_found.append(found_competitors)
+                    logger.debug(f"Found: {found_competitors} named in '{sentence}'")
+                else:
+                    filtered_sentences.append(sentence)
+
+            else:
+                filtered_sentences.append(sentence)
+
+        filtered_output = " ".join(filtered_sentences)
+
+        if len(flagged_sentences):
+            return FailResult(
+                error_message=(
+                    f"Found the following competitors: {list_of_competitors_found}. "
+                    "Please avoid naming those competitors next time"
+                ),
+                fix_value=filtered_output,
+            )
+        else:
+            return PassResult()
