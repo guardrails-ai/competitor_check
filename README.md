@@ -17,13 +17,14 @@ This validator ensures that no competitors for an organization are being named. 
 ### Installation
 
 ```bash
-$ guardrails hub install competitor-check
+$ guardrails hub install hub://guardrails/competitor-check
 ```
 
 ### Initialization
 
 ```python
-competitor_check =CompetitorCheckn(
+from guardrails.hub import CompetitorCheck
+competitor_check = CompetitorCheck(
 	competitors_list=["name1", "name2",]
 	on_fail="noop"
 )
