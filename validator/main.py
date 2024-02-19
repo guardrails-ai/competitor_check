@@ -1,3 +1,5 @@
+import nltk
+import spacy
 import re
 from typing import Callable, Dict, List, Optional
 
@@ -9,22 +11,6 @@ from guardrails.validators import (
     Validator,
     register_validator,
 )
-
-try:
-    import nltk  # type: ignore
-except ImportError:
-    nltk = None  # type: ignore
-
-if nltk is not None:
-    try:
-        nltk.data.find("tokenizers/punkt")
-    except LookupError:
-        nltk.download("punkt")
-
-try:
-    import spacy
-except ImportError:
-    spacy = None
 
 
 @register_validator(name="guardrails/competitor_check", data_type="string")
@@ -47,18 +33,6 @@ class CompetitorCheck(Validator):
         super().__init__(competitors=competitors, on_fail=on_fail)
         self._competitors = competitors
         model = "en_core_web_trf"
-        if spacy is None:
-            raise ImportError(
-                "You must install spacy in order to use the CompetitorCheck validator."
-            )
-
-        if not spacy.util.is_package(model):
-            logger.info(
-                f"Spacy model {model} not installed. "
-                "Download should start now and take a few minutes."
-            )
-            spacy.cli.download(model)  # type: ignore
-
         self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
@@ -134,11 +108,6 @@ class CompetitorCheck(Validator):
             ValidationResult: The validation result.
         """
 
-        if nltk is None:
-            raise ImportError(
-                "`nltk` library is required for `competitors-check` validator. "
-                "Please install it with `poetry add nltk`."
-            )
         sentences = nltk.sent_tokenize(value)
         flagged_sentences = []
         filtered_sentences = []
