@@ -1,4 +1,4 @@
-## Overview
+# Overview
 
 | Developed by | Guardrails AI |
 | --- | --- |
@@ -12,9 +12,11 @@
 
 This validator ensures that no competitors for an organization are being named. In order to use this validator, you need to provide a list of competitors that you don’t want to name.
 
-### Resources required
+### Requirements
 
-- Dependencies: `nltk`
+* Dependencies:
+    - guardrails-ai>=0.4.0
+    - nltk
 
 ## Installation
 
@@ -76,7 +78,7 @@ guard.parse("""
 """)
 ```
 
-## API Reference
+# API Reference
 
 
 **`__init__(self, competitors, on_fail="noop")`**
