@@ -37,10 +37,20 @@ from guardrails.hub import CompetitorCheck
 
 
 # Setup Guard
-guard = Guard().use(CompetitorCheck, ["Apple", "Samsung"])
+guard = Guard().use(CompetitorCheck, ["Apple", "Samsung"], "exception")
 
-guard.validate("The apple doesn't fall far from the tree.")  # Validator passes
-guard.validate("Apple just released a new iPhone.")  # Validator fails
+response = guard.validate(
+    "The apple doesn't fall far from the tree."
+)  # Validator passes
+
+try:
+    response = guard.validate("Apple just released a new iPhone.")  # Validator fails
+except Exception as e:
+    print(e)
+```
+Output:
+```console
+Validation failed for field with errors: Found the following competitors: [['Apple']]. Please avoid naming those competitors next time
 ```
 
 ### Validating JSON output via Python
@@ -54,10 +64,8 @@ from guardrails.hub import CompetitorCheck
 from guardrails import Guard
 
 # Initialize Validator
-val = CompetitorCheck(
-    competitors=["Apple", "Samsung"],
-    on_fail="noop"
-)
+val = CompetitorCheck(competitors=["Apple", "Samsung"], on_fail="exception")
+
 
 # Create Pydantic BaseModel
 class MarketingCopy(BaseModel):
@@ -66,16 +74,26 @@ class MarketingCopy(BaseModel):
         description="Description about the product", validators=[val]
     )
 
+
 # Create a Guard to check for valid Pydantic output
 guard = Guard.from_pydantic(output_class=MarketingCopy)
 
 # Run LLM output generating JSON through guard
-guard.parse("""
-{
-    "product_name": "New Phone",
-    "product_description": "We're excited to release a new phone."
-}
-""")
+try:
+    guard.parse(
+        """
+        {
+            "product_name": "Galaxy S23+",
+            "product_description": "Samsung's latest flagship phone with 5G capabilities"
+        }
+        """
+    )
+except Exception as e:
+    print(e)
+```
+Output:
+```console
+Validation failed for field with errors: Found the following competitors: [['Samsung']]. Please avoid naming those competitors next time
 ```
 
 # API Reference
