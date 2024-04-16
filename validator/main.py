@@ -42,7 +42,8 @@ class CompetitorCheck(Validator):
 
         if api_endpoint and api_key:
             self.nlp = self.query
-        self.nlp = spacy.load(model)
+        else:
+            self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
         """Performs exact match to find competitors from a list in a given
