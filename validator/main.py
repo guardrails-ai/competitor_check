@@ -24,6 +24,9 @@ class CompetitorCheck(Validator):
 
     Args:
         competitors (List[str]): List of competitors you want to avoid naming
+        on_fail (Optional[Callable]): Callback function to be executed on validation failure
+        api_endpoint (Optional[str]): API endpoint for external NER service
+        api_key (Optional[str]): API key for external NER service
     """
 
     def __init__(
