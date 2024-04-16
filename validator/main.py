@@ -1,3 +1,4 @@
+import os
 import re
 from typing import Callable, Dict, List, Optional
 
@@ -12,6 +13,7 @@ from guardrails.validators import (
     Validator,
     register_validator,
 )
+from validators import url as urlValidator
 
 
 @register_validator(name="guardrails/competitor_check", data_type="string")
@@ -34,14 +36,36 @@ class CompetitorCheck(Validator):
         competitors: List[str],
         on_fail: Optional[Callable] = None,
         api_endpoint: str = None,
-        api_key: str = None,
     ):
         super().__init__(competitors=competitors, on_fail=on_fail)
         self._competitors = competitors
         model = "en_core_web_trf"
 
-        if api_endpoint and api_key:
-            self.nlp = self.query
+        self.nlp = self._load_nlp_model(model, api_endpoint)
+
+    def _load_nlp_model(
+        self, model: str, api_endpoint: Optional[str]
+    ) -> spacy.language.Language:
+        """Loads either a local spaCy model or uses an external API endpoint for NER.
+
+        Args:
+            model (str): The model name to load
+            api_endpoint (Optional[str]): If given an endpoint, returns a callable that
+            sends a request to the given endpoint
+
+        Returns:
+            spacy.language.Language: The returned model or a callable that sends a
+            request to the given API endpoint.
+        """
+        if api_endpoint:
+            if urlValidator(api_endpoint):
+                self.nlp = self.query
+            else:
+                logger.debug(
+                    f"api_endpoint {api_endpoint} supplied to",
+                    "CompetitorCheck Validator but the address was not valid",
+                )
+
         else:
             self.nlp = spacy.load(model)
 
@@ -163,7 +187,7 @@ class CompetitorCheck(Validator):
         """
         headers = {
             "Accept": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {os.environ['HF_API_KEY']}",
             "Content-Type": "application/json",
         }
         payload = str(
