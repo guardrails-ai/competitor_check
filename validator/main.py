@@ -1,8 +1,9 @@
-import nltk
-import spacy
 import re
 from typing import Callable, Dict, List, Optional
 
+import nltk
+import requests
+import spacy
 from guardrails.logger import logger
 from guardrails.validators import (
     FailResult,
@@ -29,10 +30,15 @@ class CompetitorCheck(Validator):
         self,
         competitors: List[str],
         on_fail: Optional[Callable] = None,
+        api_endpoint: str = None,
+        api_key: str = None,
     ):
         super().__init__(competitors=competitors, on_fail=on_fail)
         self._competitors = competitors
         model = "en_core_web_trf"
+
+        if api_endpoint and api_key:
+            self.nlp = self.query
         self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
@@ -141,3 +147,25 @@ class CompetitorCheck(Validator):
             )
         else:
             return PassResult()
+
+    def query(self, query_str: str) -> list[str]:
+        """Sends a request to the supplied API endpoint using a raw post request.
+
+        Args:
+            query_str (str): The string to query the 'en_core_web_trf' with.
+
+        Returns:
+            list[str]: The resulting output from the 'en_core_web_trf' model
+        """
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = str(
+            {
+                "inputs": query_str,
+            }
+        )
+        response = requests.post(self.api_url, headers=headers, json=payload)
+        return response.json()
