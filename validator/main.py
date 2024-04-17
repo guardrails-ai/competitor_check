@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from typing import Callable, Dict, List, Optional
@@ -5,15 +6,11 @@ from typing import Callable, Dict, List, Optional
 import nltk
 import requests
 import spacy
+import validators
 from guardrails.logger import logger
-from guardrails.validators import (
-    FailResult,
-    PassResult,
-    ValidationResult,
-    Validator,
-    register_validator,
-)
-from validators import url as urlValidator
+from guardrails.validators import (FailResult, PassResult, ValidationResult,
+                                   Validator, register_validator)
+from spacy_download import load_spacy
 
 
 @register_validator(name="guardrails/competitor_check", data_type="string")
@@ -39,13 +36,12 @@ class CompetitorCheck(Validator):
     ):
         super().__init__(competitors=competitors, on_fail=on_fail)
         self._competitors = competitors
-        model = "en_core_web_trf"
+        self.model = "en_core_web_trf"
+        self.api_endpoint = api_endpoint
 
-        self.nlp = self._load_nlp_model(model, api_endpoint)
+        self.nlp = self._load_nlp_model(self.model)
 
-    def _load_nlp_model(
-        self, model: str, api_endpoint: Optional[str]
-    ) -> spacy.language.Language:
+    def _load_nlp_model(self, model: str) -> spacy.language.Language:
         """Loads either a local spaCy model or uses an external API endpoint for NER.
 
         Args:
@@ -57,17 +53,17 @@ class CompetitorCheck(Validator):
             spacy.language.Language: The returned model or a callable that sends a
             request to the given API endpoint.
         """
-        if api_endpoint:
-            if urlValidator(api_endpoint):
-                self.nlp = self.query
+        if self.api_endpoint:
+            if validators.url(self.api_endpoint):
+                return self.query
             else:
-                logger.debug(
-                    f"api_endpoint {api_endpoint} supplied to",
+                logger.WARNING(
+                    f"api_endpoint {self.api_endpoint} supplied to",
                     "CompetitorCheck Validator but the address was not valid",
                 )
 
         else:
-            self.nlp = spacy.load(model)
+            return load_spacy(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
         """Performs exact match to find competitors from a list in a given
@@ -89,23 +85,30 @@ class CompetitorCheck(Validator):
                 found_entities.append(entity)
         return found_entities
 
-    def perform_ner(self, text: str, nlp) -> List[str]:
+    def perform_ner(self, text: str) -> List[str]:
         """Performs named entity recognition on text using a provided NLP
         model.
 
         Args:
             text (str): The text to perform named entity recognition on.
-            nlp: The NLP model to use for entity recognition.
 
         Returns:
             entities: A list of entities found.
         """
 
-        doc = nlp(text)
+        doc = self.nlp(text)
         entities = []
-        for ent in doc.ents:
-            entities.append(ent.text)
-        return entities
+        # Running local model
+
+        if hasattr(doc, "ents"):
+            for ent in doc.ents:
+                print("RUNNING LOCAL")
+                entities.append(ent.text)
+            return entities
+        else:
+            print("NON LOCAL!")
+            # After parsing local model or recieving from api endpoint, we can just return a list
+            return entities
 
     def is_entity_in_list(self, entities: List[str], competitors: List[str]) -> List:
         """Checks if any entity from a list is present in a given list of
@@ -150,7 +153,7 @@ class CompetitorCheck(Validator):
         for sentence in sentences:
             entities = self.exact_match(sentence, self._competitors)
             if entities:
-                ner_entities = self.perform_ner(sentence, self.nlp)
+                ner_entities = self.perform_ner(sentence)
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
 
                 if found_competitors:
@@ -176,7 +179,7 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
 
-    def query(self, query_str: str) -> list[str]:
+    async def query(self, query_str: str) -> list[str]:
         """Sends a request to the supplied API endpoint using a raw post request.
 
         Args:
@@ -195,5 +198,8 @@ class CompetitorCheck(Validator):
                 "inputs": query_str,
             }
         )
-        response = requests.post(self.api_url, headers=headers, json=payload)
+        response = requests.post(
+            self.api_endpoint, headers=headers, json=payload, timeout=3
+        )
+
         return response.json()

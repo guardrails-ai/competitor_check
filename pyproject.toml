@@ -12,6 +12,8 @@ dependencies = [
     "nltk",
     "spacy",
     "guardrails-ai>=0.4.0"
+    "spacy-download",
+    "validators"
 ]
 
 [project.optional-dependencies]
