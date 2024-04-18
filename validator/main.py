@@ -45,6 +45,9 @@ class CompetitorCheck(Validator):
         self.model = "en_core_web_trf"
         self.api_endpoint = api_endpoint
 
+        print("competitors")
+        print(competitors)
+        
         self.nlp = self._load_nlp_model(self.model)
 
     def _load_nlp_model(self, model: str) -> spacy.language.Language:
@@ -159,10 +162,13 @@ class CompetitorCheck(Validator):
         # last_word = sentences[-1].split(" ")[-1]
         last_sentence = sentences[-1]
         entities = self.exact_match(last_sentence, self._competitors)
+        print("entities")
+        print(entities)
         if entities:
             ner_entities = self.perform_ner(last_sentence)
             found_competitors = self.is_entity_in_list(ner_entities, entities)
-
+            print('found_competitors')
+            print(found_competitors)
             if found_competitors:
                 flagged_sentences.append((found_competitors, last_sentence))
                 list_of_competitors_found += found_competitors
