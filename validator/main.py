@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 from typing import Callable, Dict, List, Optional
@@ -175,7 +176,7 @@ class CompetitorCheck(Validator):
         if len(flagged_sentences):
             return FailResult(
                 fix_value=filtered_output,
-                error_message=str(
+                error_message=json.dumps(
                     {
                         "match_string": value,
                         "violation": "CompetitorCheck",
