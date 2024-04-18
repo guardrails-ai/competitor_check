@@ -170,11 +170,13 @@ class CompetitorCheck(Validator):
 
         if len(flagged_sentences):
             return FailResult(
-                error_message=(
-                    f"Found the following competitors: {list_of_competitors_found}. "
-                    "Please avoid naming those competitors next time"
-                ),
+                error_message={
+                    "match_string": value,
+                    "violation": "CompetitorCheck",
+                    "error_msg": f"Found the following competitors: {list_of_competitors_found}.",
+                },
                 fix_value=filtered_output,
+                error_message=f"Found the following competitors: {list_of_competitors_found}."
             )
         else:
             return PassResult()
