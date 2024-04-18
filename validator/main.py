@@ -97,18 +97,17 @@ class CompetitorCheck(Validator):
         """
 
         doc = self.nlp(text)
+        print(doc)
         entities = []
         # Running local model
 
         if hasattr(doc, "ents"):
             for ent in doc.ents:
-                print("RUNNING LOCAL")
                 entities.append(ent.text)
             return entities
         else:
-            print("NON LOCAL!")
             # After parsing local model or recieving from api endpoint, we can just return a list
-            return entities
+            return doc
 
     def is_entity_in_list(self, entities: List[str], competitors: List[str]) -> List:
         """Checks if any entity from a list is present in a given list of
@@ -150,30 +149,35 @@ class CompetitorCheck(Validator):
         filtered_sentences = []
         list_of_competitors_found = []
 
-        for sentence in sentences:
-            entities = self.exact_match(sentence, self._competitors)
-            if entities:
-                ner_entities = self.perform_ner(sentence)
-                found_competitors = self.is_entity_in_list(ner_entities, entities)
+        # Get the last word, and check if its a competitor. Because we are streaming
+        last_word = sentences[-1].split(" ")[-1]
+        print("LAST WORD: ", last_word)
+        entities = self.exact_match(last_word, self._competitors)
+        print("entities: ", entities)
+        if entities:
+            
+            ner_entities = self.perform_ner(last_word)
+            print("ner entitirs", ner_entities)
+            found_competitors = self.is_entity_in_list(ner_entities, entities)
 
-                if found_competitors:
-                    flagged_sentences.append((found_competitors, sentence))
-                    list_of_competitors_found.append(found_competitors)
-                    logger.debug(f"Found: {found_competitors} named in '{sentence}'")
-                else:
-                    filtered_sentences.append(sentence)
-
+            if found_competitors:
+                print("FOUND COMPETITORS", found_competitors)
+                flagged_sentences.append((found_competitors, last_word))
+                list_of_competitors_found.append(found_competitors)
+                logger.debug(f"Found: {found_competitors} named in '{last_word}'")
             else:
-                filtered_sentences.append(sentence)
+                filtered_sentences.append(last_word)
 
+        else:
+            filtered_sentences.append(last_word)
         filtered_output = " ".join(filtered_sentences)
 
         if len(flagged_sentences):
             return FailResult(
-                error_message={
+                error_msg={
                     "match_string": value,
                     "violation": "CompetitorCheck",
-                    "error_msg": f"Found the following competitors: {list_of_competitors_found}.",
+                    "error_msg": f"Found the following competitor(s): {list_of_competitors_found}.",
                 },
                 fix_value=filtered_output,
                 error_message=f"Found the following competitors: {list_of_competitors_found}."
@@ -181,7 +185,7 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
 
-    async def query(self, query_str: str) -> list[str]:
+    def query(self, query_str: str) -> list[str]:
         """Sends a request to the supplied API endpoint using a raw post request.
 
         Args:
@@ -190,18 +194,12 @@ class CompetitorCheck(Validator):
         Returns:
             list[str]: The resulting output from the 'en_core_web_trf' model
         """
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {os.environ['HF_API_KEY']}",
-            "Content-Type": "application/json",
-        }
-        payload = str(
-            {
-                "inputs": query_str,
-            }
-        )
-        response = requests.post(
-            self.api_endpoint, headers=headers, json=payload, timeout=3
-        )
+        headers = {"Authorization": f"Bearer {os.environ['HF_API_KEY']}"}
 
-        return response.json()
+        def query(payload):
+            response = requests.post(self.api_endpoint, headers=headers, json=payload)
+            return response.json()
+            
+        return query({
+            "inputs": query_str
+        })
