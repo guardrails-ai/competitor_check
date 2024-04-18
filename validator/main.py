@@ -8,8 +8,13 @@ import requests
 import spacy
 import validators
 from guardrails.logger import logger
-from guardrails.validators import (FailResult, PassResult, ValidationResult,
-                                   Validator, register_validator)
+from guardrails.validators import (
+    FailResult,
+    PassResult,
+    ValidationResult,
+    Validator,
+    register_validator,
+)
 from spacy_download import load_spacy
 
 
@@ -153,7 +158,6 @@ class CompetitorCheck(Validator):
         last_word = sentences[-1].split(" ")[-1]
         entities = self.exact_match(last_word, self._competitors)
         if entities:
-            
             ner_entities = self.perform_ner(last_word)
             found_competitors = self.is_entity_in_list(ner_entities, entities)
 
@@ -170,13 +174,14 @@ class CompetitorCheck(Validator):
 
         if len(flagged_sentences):
             return FailResult(
-                error_msg={
-                    "match_string": value,
-                    "violation": "CompetitorCheck",
-                    "error_msg": f"Found the following competitor(s): {list_of_competitors_found[0][0]}.",
-                },
                 fix_value=filtered_output,
-                error_message=f"Found the following competitors: {list_of_competitors_found[0][0]}."
+                error_message=str(
+                    {
+                        "match_string": value,
+                        "violation": "CompetitorCheck",
+                        "error_msg": f"Found the following competitor(s): {list_of_competitors_found[0][0]}.",
+                    }
+                ),
             )
         else:
             return PassResult()
@@ -195,5 +200,5 @@ class CompetitorCheck(Validator):
         def query(payload):
             response = requests.post(self.api_endpoint, headers=headers, json=payload)
             return response.json()
-            
-        return query(str({"inputs": query_str }))
+
+        return query(str({"inputs": query_str}))
