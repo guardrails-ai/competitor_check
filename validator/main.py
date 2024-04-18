@@ -151,17 +151,13 @@ class CompetitorCheck(Validator):
 
         # Get the last word, and check if its a competitor. Because we are streaming
         last_word = sentences[-1].split(" ")[-1]
-        print("LAST WORD: ", last_word)
         entities = self.exact_match(last_word, self._competitors)
-        print("entities: ", entities)
         if entities:
             
             ner_entities = self.perform_ner(last_word)
-            print("ner entitirs", ner_entities)
             found_competitors = self.is_entity_in_list(ner_entities, entities)
 
             if found_competitors:
-                print("FOUND COMPETITORS", found_competitors)
                 flagged_sentences.append((found_competitors, last_word))
                 list_of_competitors_found.append(found_competitors)
                 logger.debug(f"Found: {found_competitors} named in '{last_word}'")
@@ -177,10 +173,10 @@ class CompetitorCheck(Validator):
                 error_msg={
                     "match_string": value,
                     "violation": "CompetitorCheck",
-                    "error_msg": f"Found the following competitor(s): {list_of_competitors_found}.",
+                    "error_msg": f"Found the following competitor(s): {list_of_competitors_found[0][0]}.",
                 },
                 fix_value=filtered_output,
-                error_message=f"Found the following competitors: {list_of_competitors_found}."
+                error_message=f"Found the following competitors: {list_of_competitors_found[0][0]}."
             )
         else:
             return PassResult()
