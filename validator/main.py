@@ -196,6 +196,4 @@ class CompetitorCheck(Validator):
             response = requests.post(self.api_endpoint, headers=headers, json=payload)
             return response.json()
             
-        return query({
-            "inputs": query_str
-        })
+        return query(str({"inputs": query_str }))
