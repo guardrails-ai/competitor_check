@@ -156,31 +156,33 @@ class CompetitorCheck(Validator):
         list_of_competitors_found = []
 
         # Get the last word, and check if its a competitor. Because we are streaming
-        last_word = sentences[-1].split(" ")[-1]
-        entities = self.exact_match(last_word, self._competitors)
+        # last_word = sentences[-1].split(" ")[-1]
+        last_sentence = sentences[-1]
+        entities = self.exact_match(last_sentence, self._competitors)
         if entities:
-            ner_entities = self.perform_ner(last_word)
+            ner_entities = self.perform_ner(last_sentence)
             found_competitors = self.is_entity_in_list(ner_entities, entities)
 
             if found_competitors:
-                flagged_sentences.append((found_competitors, last_word))
-                list_of_competitors_found.append(found_competitors)
-                logger.debug(f"Found: {found_competitors} named in '{last_word}'")
+                flagged_sentences.append((found_competitors, last_sentence))
+                list_of_competitors_found += found_competitors
+                logger.debug(f"Found: {found_competitors} named in '{last_sentence}'")
             else:
-                filtered_sentences.append(last_word)
+                filtered_sentences.append(last_sentence)
 
         else:
-            filtered_sentences.append(last_word)
+            filtered_sentences.append(last_sentence)
         filtered_output = " ".join(filtered_sentences)
 
         if len(flagged_sentences):
+            list_of_competitors_found = list(set(list_of_competitors_found))
             return FailResult(
                 fix_value=filtered_output,
                 error_message=json.dumps(
                     {
-                        "match_string": value,
+                        "match_string": list_of_competitors_found,
                         "violation": "CompetitorCheck",
-                        "error_msg": f"Found the following competitor(s): {list_of_competitors_found[0][0]}.",
+                        "error_msg": "A competitor was mentioned.",
                     }
                 ),
             )
