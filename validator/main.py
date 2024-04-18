@@ -37,8 +37,8 @@ class CompetitorCheck(Validator):
     def __init__(
         self,
         competitors: List[str],
-        on_fail: Optional[Callable] = None,
         api_endpoint: str = None,
+        on_fail: Optional[Callable] = None,
     ):
         super().__init__(competitors=competitors, on_fail=on_fail)
         self._competitors = competitors
