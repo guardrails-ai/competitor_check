@@ -154,46 +154,47 @@ class CompetitorCheck(Validator):
         """
 
         sentences = nltk.sent_tokenize(value)
-        flagged_sentences = []
-        filtered_sentences = []
-        list_of_competitors_found = []
-
-        # Get the last word, and check if its a competitor. Because we are streaming
-        # last_word = sentences[-1].split(" ")[-1]
         last_sentence = sentences[-1]
-        entities = self.exact_match(last_sentence, self._competitors)
-        print("entities")
-        print(entities)
-        if entities:
-            ner_entities = self.perform_ner(last_sentence)
-            found_competitors = self.is_entity_in_list(ner_entities, entities)
-            print('found_competitors')
-            print(found_competitors)
-            if found_competitors:
-                flagged_sentences.append((found_competitors, last_sentence))
-                list_of_competitors_found += found_competitors
-                logger.debug(f"Found: {found_competitors} named in '{last_sentence}'")
+        if last_sentence.endswith((".", "?", "!")):
+            flagged_sentences = []
+            filtered_sentences = []
+            list_of_competitors_found = []
+
+            # Get the last word, and check if its a competitor. Because we are streaming
+            # last_word = sentences[-1].split(" ")[-1]
+            entities = self.exact_match(last_sentence, self._competitors)
+            print("entities")
+            print(entities)
+            if entities:
+                ner_entities = self.perform_ner(last_sentence)
+                found_competitors = self.is_entity_in_list(ner_entities, entities)
+                print('found_competitors')
+                print(found_competitors)
+                if found_competitors:
+                    flagged_sentences.append((found_competitors, last_sentence))
+                    list_of_competitors_found += found_competitors
+                    logger.debug(f"Found: {found_competitors} named in '{last_sentence}'")
+                else:
+                    filtered_sentences.append(last_sentence)
+
             else:
                 filtered_sentences.append(last_sentence)
+            filtered_output = " ".join(filtered_sentences)
 
-        else:
-            filtered_sentences.append(last_sentence)
-        filtered_output = " ".join(filtered_sentences)
-
-        if len(flagged_sentences):
-            list_of_competitors_found = list(set(list_of_competitors_found))
-            return FailResult(
-                fix_value=filtered_output,
-                error_message=json.dumps(
-                    {
-                        "match_string": list_of_competitors_found,
-                        "violation": "CompetitorCheck",
-                        "error_msg": "A competitor was mentioned.",
-                    }
-                ),
-            )
-        else:
+            if len(flagged_sentences):
+                list_of_competitors_found = list(set(list_of_competitors_found))
+                return FailResult(
+                    fix_value=filtered_output,
+                    error_message=json.dumps(
+                        {
+                            "match_string": list_of_competitors_found,
+                            "violation": "CompetitorCheck",
+                            "error_msg": "A competitor was mentioned.",
+                        }
+                    ),
+                )
             return PassResult()
+        return PassResult()
 
     def query(self, query_str: str) -> list[str]:
         """Sends a request to the supplied API endpoint using a raw post request.
