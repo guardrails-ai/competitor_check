@@ -1,7 +1,6 @@
 # Overview
 
 | Developed by | Guardrails AI |
-| --- | --- |
 | Date of development | Feb 15, 2024 |
 | Validator type | Brand risk, QA, chatbots |
 | Blog |  |
@@ -10,6 +9,7 @@
 
 ## Description
 
+### Intended Use
 This validator ensures that no competitors for an organization are being named. In order to use this validator, you need to provide a list of competitors that you don’t want to name.
 
 ### Requirements
@@ -98,25 +98,18 @@ Validation failed for field with errors: Found the following competitors: [['Sam
 
 # API Reference
 
-
 **`__init__(self, competitors, on_fail="noop")`**
 <ul>
-
 Initializes a new instance of the Validator class.
 
-**Parameters:**
-
-- **`competitors`** *(List[str]):* List of names of competitors to avoid.
-- **`on_fail`** *(str, Callable):* The policy to enact when a validator fails. If `str`, must be one of `reask`, `fix`, `filter`, `refrain`, `noop`, `exception` or `fix_reask`. Otherwise, must be a function that is called when the validator fails.
-
+**Parameters**
+- **`competitors`** *(List[str])*: List of names of competitors to avoid.
+- **`on_fail`** *(str, Callable)*: The policy to enact when a validator fails. If `str`, must be one of `reask`, `fix`, `filter`, `refrain`, `noop`, `exception` or `fix_reask`. Otherwise, must be a function that is called when the validator fails.
 </ul>
-
 <br/>
 
-**`validate(self, value, metadata={}) -> ValidationResult`**
-
+**`validate(self, value, metadata={}) → ValidationResult`**
 <ul>
-
 Validates the given `value` using the rules defined in this validator, relying on the `metadata` provided to customize the validation process. This method is automatically invoked by `guard.parse(...)`, ensuring the validation logic is applied to the input data.
 
 Note:
@@ -124,9 +117,8 @@ Note:
 1. This method should not be called directly by the user. Instead, invoke `guard.parse(...)` where this method will be called internally for each associated Validator.
 2. When invoking `guard.parse(...)`, ensure to pass the appropriate `metadata` dictionary that includes keys and values required by this validator. If `guard` is associated with multiple validators, combine all necessary metadata into a single dictionary.
 
-**Parameters:**
-
-- **`value`** *(Any):* The input value to validate.
-- **`metadata`** *(dict):* A dictionary containing metadata required for validation. No additional metadata keys are needed for this validator.
+**Parameters**
+- **`value`** *(Any)*: The input value to validate.
+- **`metadata`** *(dict)*: A dictionary containing metadata required for validation. No additional metadata keys are needed for this validator.
 
 </ul>
