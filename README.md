@@ -37,7 +37,9 @@ from guardrails.hub import CompetitorCheck
 
 
 # Setup Guard
-guard = Guard().use(CompetitorCheck, ["Apple", "Samsung"], "exception")
+guard = Guard().use(
+    CompetitorCheck, ["Apple", "Samsung"], "exception"
+)
 
 response = guard.validate(
     "The apple doesn't fall far from the tree."
@@ -108,7 +110,7 @@ Initializes a new instance of the Validator class.
 </ul>
 <br/>
 
-**`validate(self, value, metadata={}) → ValidationResult`**
+**`validate(self, value, metadata={}) -> ValidationResult`**
 <ul>
 Validates the given `value` using the rules defined in this validator, relying on the `metadata` provided to customize the validation process. This method is automatically invoked by `guard.parse(...)`, ensuring the validation logic is applied to the input data.
 
