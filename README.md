@@ -21,7 +21,7 @@ This validator ensures that no competitors for an organization are being named. 
 ## Installation
 
 ```bash
-$ guardrails hub install hub://guardrails/competitor_check
+guardrails hub install hub://guardrails/competitor_check
 ```
 
 ## Usage Examples
