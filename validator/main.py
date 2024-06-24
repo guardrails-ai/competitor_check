@@ -3,6 +3,7 @@ import spacy
 import re
 from typing import Callable, Dict, List, Optional
 
+from guardrails.validator_base import ErrorSpan
 from guardrails.logger import logger
 from guardrails.validators import (
     FailResult,
@@ -111,16 +112,22 @@ class CompetitorCheck(Validator):
         sentences = nltk.sent_tokenize(value)
         flagged_sentences = []
         filtered_sentences = []
+        error_spans:List[ErrorSpan] = []
         list_of_competitors_found = []
-
+        start_ind = 0
         for sentence in sentences:
+            
             entities = self.exact_match(sentence, self._competitors)
             if entities:
                 ner_entities = self.perform_ner(sentence, self.nlp)
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
-
                 if found_competitors:
                     flagged_sentences.append((found_competitors, sentence))
+                    error_spans.append(ErrorSpan(
+                        start=start_ind,
+                        end=start_ind + len(sentence),
+                        reason=f"Found: {found_competitors} named in '{sentence}'"
+                    ))
                     list_of_competitors_found.append(found_competitors)
                     logger.debug(f"Found: {found_competitors} named in '{sentence}'")
                 else:
@@ -128,9 +135,9 @@ class CompetitorCheck(Validator):
 
             else:
                 filtered_sentences.append(sentence)
+            start_ind += len(sentence)
 
         filtered_output = " ".join(filtered_sentences)
-
         if len(flagged_sentences):
             return FailResult(
                 error_message=(
@@ -138,6 +145,7 @@ class CompetitorCheck(Validator):
                     "Please avoid naming those competitors next time"
                 ),
                 fix_value=filtered_output,
+                error_spans=error_spans
             )
         else:
             return PassResult()
