@@ -26,6 +26,32 @@ class CompetitorCheck(Validator):
         competitors (List[str]): List of competitors you want to avoid naming
     """
 
+    def chunking_function(self, chunk: str):
+        """
+        Use a sentence tokenizer to split the chunk into sentences.
+
+        Because using the tokenizer is expensive, we only use it if there
+        is a period present in the chunk.
+        """
+        # using the sentence tokenizer is expensive
+        # we check for a . to avoid wastefully calling the tokenizer
+        if "." not in chunk:
+            return []
+        sentences = nltk.sent_tokenize(chunk)
+        if len(sentences) == 0:
+            return []
+        if len(sentences) == 1:
+            sentence = sentences[0].strip()
+            # this can still fail if the last chunk ends on the . in an email address
+            if sentence[-1] == ".":
+                return [sentence, ""]
+            else:
+                return []
+
+        # return the sentence
+        # then the remaining chunks that aren't finished accumulating
+        return [sentences[0], "".join(sentences[1:])]
+
     def __init__(
         self,
         competitors: List[str],
