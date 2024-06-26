@@ -123,11 +123,6 @@ class CompetitorCheck(Validator):
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
                 if found_competitors:
                     flagged_sentences.append((found_competitors, sentence))
-                    error_spans.append(ErrorSpan(
-                        start=start_ind,
-                        end=start_ind + len(sentence),
-                        reason=f"Found: {found_competitors} named in '{sentence}'"
-                    ))
                     list_of_competitors_found.append(found_competitors)
                     logger.debug(f"Found: {found_competitors} named in '{sentence}'")
                 else:
@@ -138,6 +133,26 @@ class CompetitorCheck(Validator):
             start_ind += len(sentence)
 
         filtered_output = " ".join(filtered_sentences)
+        found_entities = []
+        for tup in flagged_sentences:
+            for entity in tup[0]:
+                found_entities.append(entity)
+
+        def find_all(a_str, sub):
+            start = 0
+            while True:
+                start = a_str.find(sub, start)
+                if start == -1: return
+                yield start
+                start += len(sub) # use start += 1 to find overlapping matches
+
+        error_spans = []
+        for entity in found_entities: 
+            starts = list(find_all(value, entity))
+            for start in starts:
+                error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
+
+
         if len(flagged_sentences):
             return FailResult(
                 error_message=(
