@@ -26,6 +26,32 @@ class CompetitorCheck(Validator):
         competitors (List[str]): List of competitors you want to avoid naming
     """
 
+    def chunking_function(self, chunk: str):
+        """
+        Use a sentence tokenizer to split the chunk into sentences.
+
+        Because using the tokenizer is expensive, we only use it if there
+        is a period present in the chunk.
+        """
+        # using the sentence tokenizer is expensive
+        # we check for a . to avoid wastefully calling the tokenizer
+        if "." not in chunk:
+            return []
+        sentences = nltk.sent_tokenize(chunk)
+        if len(sentences) == 0:
+            return []
+        if len(sentences) == 1:
+            sentence = sentences[0].strip()
+            # this can still fail if the last chunk ends on the . in an email address
+            if sentence[-1] == ".":
+                return [sentence, ""]
+            else:
+                return []
+
+        # return the sentence
+        # then the remaining chunks that aren't finished accumulating
+        return [sentences[0], "".join(sentences[1:])]
+
     def __init__(
         self,
         competitors: List[str],
@@ -123,11 +149,6 @@ class CompetitorCheck(Validator):
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
                 if found_competitors:
                     flagged_sentences.append((found_competitors, sentence))
-                    error_spans.append(ErrorSpan(
-                        start=start_ind,
-                        end=start_ind + len(sentence),
-                        reason=f"Found: {found_competitors} named in '{sentence}'"
-                    ))
                     list_of_competitors_found.append(found_competitors)
                     logger.debug(f"Found: {found_competitors} named in '{sentence}'")
                 else:
@@ -138,6 +159,27 @@ class CompetitorCheck(Validator):
             start_ind += len(sentence)
 
         filtered_output = " ".join(filtered_sentences)
+        found_entities = []
+        for tup in flagged_sentences:
+            for entity in tup[0]:
+                found_entities.append(entity)
+
+        def find_all(a_str, sub):
+            start = 0
+            while True:
+                start = a_str.find(sub, start)
+                if start == -1: 
+                    return
+                yield start
+                start += len(sub) # use start += 1 to find overlapping matches
+
+        error_spans = []
+        for entity in found_entities: 
+            starts = list(find_all(value, entity))
+            for start in starts:
+                error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
+
+
         if len(flagged_sentences):
             return FailResult(
                 error_message=(
