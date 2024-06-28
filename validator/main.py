@@ -1,7 +1,7 @@
 import nltk
 import spacy
 import re
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from guardrails.validator_base import ErrorSpan
 from guardrails.logger import logger
