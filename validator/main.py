@@ -195,18 +195,35 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
         
-    def _inference_local(self, value: str, metadata: Dict) -> ValidationResult:
-        """Local inference method for the competitor check validator."""
-        return self.perform_ner(value, metadata)
-        
+    def _inference_local(self, model_input: Any) -> str:
+        """Local inference method to detect and anonymize competitor names."""
+        text = model_input["text"]
+        competitors = model_input["competitors"]
 
-    def _inference_remote(self, value: str, metadata: Dict) -> ValidationResult:
-        """Remote inference method for the competitor check validator."""
+        doc = self.nlp(text)
+        anonymized_text = text
+        for ent in doc.ents:
+            if ent.text in competitors:
+                anonymized_text = anonymized_text.replace(ent.text, "[COMPETITOR]")
+        return anonymized_text
+
+    def _inference_remote(self, model_input: Any) -> str:
+        """Remote inference method for a hosted ML endpoint."""
         request_body = {
             "model_name": "CompetitorCheck",
-            "text": value,
-            "competitors": self._competitors,
+            "text": model_input["text"],
+            "competitors": model_input["competitors"]
         }
-        request_body = json.dumps(request_body, ensure_ascii=False)
         response = self._hub_inference_request(request_body)
-        return response
+        
+        if not response or 'outputs' not in response:
+            raise ValueError("Invalid response from remote inference")
+        
+        outputs = response['outputs'][0]['data'][0]
+        result = json.loads(outputs)
+        
+        if 'output' in result:
+            return result['output']
+        else:
+            raise ValueError("Invalid format of the response from remote inference")
+    
