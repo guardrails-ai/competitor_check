@@ -1,10 +1,11 @@
-import nltk
-import spacy
+import json
 import re
 from typing import Any, Callable, Dict, List, Optional
 
-from guardrails.validator_base import ErrorSpan
+import nltk
+import spacy
 from guardrails.logger import logger
+from guardrails.validator_base import ErrorSpan
 from guardrails.validators import (
     FailResult,
     PassResult,
@@ -12,8 +13,6 @@ from guardrails.validators import (
     Validator,
     register_validator,
 )
-import json
-
 
 
 @register_validator(name="guardrails/competitor_check", data_type="string")
@@ -57,13 +56,14 @@ class CompetitorCheck(Validator):
     def __init__(
         self,
         competitors: List[str],
+        use_local: bool = False,
         on_fail: Optional[Callable] = None,
-        use_local: bool = True
     ):
-        super().__init__(competitors=competitors, on_fail=on_fail)
+        super().__init__(competitors=competitors, use_local=use_local, on_fail=on_fail)
         self._competitors = competitors
         model = "en_core_web_trf"
-        self.nlp = spacy.load(model)
+        if self.use_local:
+            self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
         """Performs exact match to find competitors from a list in a given
@@ -85,13 +85,12 @@ class CompetitorCheck(Validator):
                 found_entities.append(entity)
         return found_entities
 
-    def perform_ner(self, text: str, nlp) -> List[str]:
+    def perform_ner(self, text: str) -> List[str]:
         """Performs named entity recognition on text using a provided NLP
         model.
 
         Args:
             text (str): The text to perform named entity recognition on.
-            nlp: The NLP model to use for entity recognition.
 
         Returns:
             entities: A list of entities found.
@@ -141,14 +140,15 @@ class CompetitorCheck(Validator):
         sentences = nltk.sent_tokenize(value)
         flagged_sentences = []
         filtered_sentences = []
-        error_spans:List[ErrorSpan] = []
+        error_spans: List[ErrorSpan] = []
         list_of_competitors_found = []
         start_ind = 0
         for sentence in sentences:
-            
             entities = self.exact_match(sentence, self._competitors)
             if entities:
-                ner_entities = self.perform_ner(sentence, self.nlp)
+                ner_entities = self.inference(
+                    {"text": sentence, "competitors": self._competitors}
+                )
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
                 if found_competitors:
                     flagged_sentences.append((found_competitors, sentence))
@@ -171,17 +171,22 @@ class CompetitorCheck(Validator):
             start = 0
             while True:
                 start = a_str.find(sub, start)
-                if start == -1: 
+                if start == -1:
                     return
                 yield start
-                start += len(sub) # use start += 1 to find overlapping matches
+                start += len(sub)  # use start += 1 to find overlapping matches
 
         error_spans = []
-        for entity in found_entities: 
+        for entity in found_entities:
             starts = list(find_all(value, entity))
             for start in starts:
-                error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
-
+                error_spans.append(
+                    ErrorSpan(
+                        start=start,
+                        end=start + len(entity),
+                        reason=f"Competitor found: {value[start:start+len(entity)]}",
+                    )
+                )
 
         if len(flagged_sentences):
             return FailResult(
@@ -190,11 +195,11 @@ class CompetitorCheck(Validator):
                     "Please avoid naming those competitors next time"
                 ),
                 fix_value=filtered_output,
-                error_spans=error_spans
+                error_spans=error_spans,
             )
         else:
             return PassResult()
-        
+
     def _inference_local(self, model_input: Any) -> str:
         """Local inference method to detect and anonymize competitor names."""
         text = model_input["text"]
@@ -212,18 +217,17 @@ class CompetitorCheck(Validator):
         request_body = {
             "model_name": "CompetitorCheck",
             "text": model_input["text"],
-            "competitors": model_input["competitors"]
+            "competitors": model_input["competitors"],
         }
         response = self._hub_inference_request(request_body)
-        
-        if not response or 'outputs' not in response:
+
+        if not response or "outputs" not in response:
             raise ValueError("Invalid response from remote inference")
-        
-        outputs = response['outputs'][0]['data'][0]
+
+        outputs = response["outputs"][0]["data"][0]
         result = json.loads(outputs)
-        
-        if 'output' in result:
-            return result['output']
+
+        if "output" in result:
+            return result["output"]
         else:
             raise ValueError("Invalid format of the response from remote inference")
-    
