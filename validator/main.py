@@ -56,7 +56,6 @@ class CompetitorCheck(Validator):
     def __init__(
         self,
         competitors: List[str],
-        use_local: bool = False,
         on_fail: Optional[Callable] = None,
         **kwargs,
     ):
