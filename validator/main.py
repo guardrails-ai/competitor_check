@@ -16,7 +16,7 @@ import json
 
 
 
-@register_validator(name="guardrails/competitor_check", data_type="string")
+@register_validator(name="guardrails/competitor_check", data_type="string", has_guardrails_endpoint=True)
 class CompetitorCheck(Validator):
     """Validates that LLM-generated text is not naming any competitors from a
     given list.
@@ -58,10 +58,15 @@ class CompetitorCheck(Validator):
         self,
         competitors: List[str],
         on_fail: Optional[Callable] = None,
-        use_local: bool = True
+        **kwargs,
     ):
-        super().__init__(competitors=competitors, on_fail=on_fail)
+        super().__init__(
+            competitors=competitors, 
+            on_fail=on_fail,
+            **kwargs,
+        )
         self._competitors = competitors
+        self.use_local = kwargs.get("use_local", None)
         model = "en_core_web_trf"
         self.nlp = spacy.load(model)
 
