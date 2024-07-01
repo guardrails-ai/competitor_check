@@ -15,7 +15,9 @@ from guardrails.validators import (
 )
 
 
-@register_validator(name="guardrails/competitor_check", data_type="string", has_guardrails_endpoint=True)
+@register_validator(
+    name="guardrails/competitor_check", data_type="string", has_guardrails_endpoint=True
+)
 class CompetitorCheck(Validator):
     """Validates that LLM-generated text is not naming any competitors from a
     given list.
