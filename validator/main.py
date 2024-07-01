@@ -151,7 +151,7 @@ class CompetitorCheck(Validator):
         for sentence in sentences:
             entities = self.exact_match(sentence, self._competitors)
             if entities:
-                ner_entities = self.inference(
+                ner_entities = self._inference(
                     {"text": sentence, "competitors": self._competitors}
                 )
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
