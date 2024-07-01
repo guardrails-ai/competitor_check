@@ -3,6 +3,7 @@ import torch
 import nltk
 from typing import Any, Dict, List
 import spacy
+import spacy_transformers
 class InferlessPythonModel:
 
     def initialize(self):
