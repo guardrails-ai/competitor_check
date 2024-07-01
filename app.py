@@ -3,10 +3,10 @@ import torch
 import nltk
 from typing import Any, Dict, List
 import spacy
-import spacy_transformers
 class InferlessPythonModel:
 
     def initialize(self):
+        spacy.cli.download("en_core_web_trf")
         self.model = spacy.load("en_core_web_trf")
         nltk.download('punkt')
         
