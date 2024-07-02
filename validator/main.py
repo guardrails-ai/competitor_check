@@ -67,7 +67,6 @@ class CompetitorCheck(Validator):
             **kwargs,
         )
         self._competitors = competitors
-        self.use_local = kwargs.get("use_local", None)
         model = "en_core_web_trf"
         if self.use_local:
             self.nlp = spacy.load(model)
