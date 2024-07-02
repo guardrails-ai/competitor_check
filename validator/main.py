@@ -222,7 +222,6 @@ class CompetitorCheck(Validator):
     def _inference_remote(self, model_input: Any) -> str:
         """Remote inference method for a hosted ML endpoint."""
         request_body = {
-            "model_name": "CompetitorCheck",
             "text": model_input["text"],
             "competitors": model_input["competitors"],
         }
@@ -234,7 +233,4 @@ class CompetitorCheck(Validator):
         outputs = response["outputs"][0]["data"][0]
         result = json.loads(outputs)
 
-        if "output" in result:
-            return result["output"]
-        else:
-            raise ValueError("Invalid format of the response from remote inference")
+        return result
