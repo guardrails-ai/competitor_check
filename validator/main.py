@@ -62,7 +62,7 @@ class CompetitorCheck(Validator):
         **kwargs,
     ):
         super().__init__(
-            competitors=competitors, 
+            competitors=competitors,
             on_fail=on_fail,
             **kwargs,
         )
@@ -101,7 +101,7 @@ class CompetitorCheck(Validator):
             entities: A list of entities found.
         """
 
-        doc = nlp(text)
+        doc = self.nlp(text)
         entities = []
         for ent in doc.ents:
             entities.append(ent.text)
@@ -154,6 +154,8 @@ class CompetitorCheck(Validator):
                 ner_entities = self._inference(
                     {"text": sentence, "competitors": self._competitors}
                 )
+                if isinstance(ner_entities, str):
+                    ner_entities = [ner_entities]
                 found_competitors = self.is_entity_in_list(ner_entities, entities)
                 if found_competitors:
                     flagged_sentences.append((found_competitors, sentence))
@@ -192,7 +194,8 @@ class CompetitorCheck(Validator):
                         reason=f"Competitor found: {value[start:start+len(entity)]}",
                     )
                 )
-
+        print("FLAGGED SENTENCES:", flagged_sentences)
+        print("ERROR SPANS:", error_spans)
         if len(flagged_sentences):
             return FailResult(
                 error_message=(
@@ -223,10 +226,10 @@ class CompetitorCheck(Validator):
             "text": model_input["text"],
             "competitors": model_input["competitors"],
         }
-        response = self._hub_inference_request(request_body)
+        response = self._hub_inference_request(request_body, self.validation_endpoint)
 
         if not response or "outputs" not in response:
-            raise ValueError("Invalid response from remote inference")
+            raise ValueError("Invalid response from remote inference", response)
 
         outputs = response["outputs"][0]["data"][0]
         result = json.loads(outputs)
