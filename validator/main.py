@@ -194,8 +194,6 @@ class CompetitorCheck(Validator):
                         reason=f"Competitor found: {value[start:start+len(entity)]}",
                     )
                 )
-        print("FLAGGED SENTENCES:", flagged_sentences)
-        print("ERROR SPANS:", error_spans)
         if len(flagged_sentences):
             return FailResult(
                 error_message=(
