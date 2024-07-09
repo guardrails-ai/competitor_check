@@ -3,7 +3,7 @@ import spacy
 import re
 from typing import Callable, Dict, List, Optional
 
-from guardrails.validator_base import ErrorSpan
+# from guardrails.validator_base import ErrorSpan
 from guardrails.logger import logger
 from guardrails.validators import (
     FailResult,
@@ -138,7 +138,7 @@ class CompetitorCheck(Validator):
         sentences = nltk.sent_tokenize(value)
         flagged_sentences = []
         filtered_sentences = []
-        error_spans:List[ErrorSpan] = []
+        # error_spans:List[ErrorSpan] = []
         list_of_competitors_found = []
         start_ind = 0
         for sentence in sentences:
@@ -164,20 +164,20 @@ class CompetitorCheck(Validator):
             for entity in tup[0]:
                 found_entities.append(entity)
 
-        def find_all(a_str, sub):
-            start = 0
-            while True:
-                start = a_str.find(sub, start)
-                if start == -1: 
-                    return
-                yield start
-                start += len(sub) # use start += 1 to find overlapping matches
+        # def find_all(a_str, sub):
+        #     start = 0
+        #     while True:
+        #         start = a_str.find(sub, start)
+        #         if start == -1: 
+        #             return
+        #         yield start
+        #         start += len(sub) # use start += 1 to find overlapping matches
 
-        error_spans = []
-        for entity in found_entities: 
-            starts = list(find_all(value, entity))
-            for start in starts:
-                error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
+        # error_spans = []
+        # for entity in found_entities: 
+        #     starts = list(find_all(value, entity))
+        #     for start in starts:
+        #         error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
 
 
         if len(flagged_sentences):
@@ -187,7 +187,7 @@ class CompetitorCheck(Validator):
                     "Please avoid naming those competitors next time"
                 ),
                 fix_value=filtered_output,
-                error_spans=error_spans
+                # error_spans=error_spans
             )
         else:
             return PassResult()
