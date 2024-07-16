@@ -236,12 +236,11 @@ class CompetitorCheck(Validator):
                 }
             ]
         }
-        response = self._hub_inference_request(request_body, self.validation_endpoint)
+        response = self._hub_inference_request(json.dumps(request_body), self.validation_endpoint)
 
         if not response or "outputs" not in response:
             raise ValueError("Invalid response from remote inference", response)
 
         outputs = response["outputs"][0]["data"][0]
-        result = json.loads(outputs)
 
-        return result
+        return outputs
