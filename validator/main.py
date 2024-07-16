@@ -221,8 +221,20 @@ class CompetitorCheck(Validator):
     def _inference_remote(self, model_input: Any) -> str:
         """Remote inference method for a hosted ML endpoint."""
         request_body = {
-            "text": model_input["text"],
-            "competitors": model_input["competitors"],
+            "inputs": [
+                {
+                    "name": "text",
+                    "shape": [1],
+                    "data": [model_input["text"]],
+                    "datatype": "BYTES"
+                },
+                {
+                    "name": "competitors",
+                    "shape": [1],
+                    "data": model_input["competitors"],
+                    "datatype": "BYTES"
+                }
+            ]
         }
         response = self._hub_inference_request(request_body, self.validation_endpoint)
 
