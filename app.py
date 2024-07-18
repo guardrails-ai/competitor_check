@@ -1,5 +1,5 @@
 import nltk
-from typing import Any, Dict, List
+from typing import Any, Dict
 import spacy
 class InferlessPythonModel:
 
