@@ -191,3 +191,4 @@ class CompetitorCheck(Validator):
             )
         else:
             return PassResult()
+        
