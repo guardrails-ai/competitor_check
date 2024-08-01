@@ -138,7 +138,7 @@ class CompetitorCheck(Validator):
         sentences = nltk.sent_tokenize(value)
         flagged_sentences = []
         filtered_sentences = []
-        error_spans:List[ErrorSpan] = []
+        error_spans: List[ErrorSpan] = []
         list_of_competitors_found = []
         start_ind = 0
         for sentence in sentences:
