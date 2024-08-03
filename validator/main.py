@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Optional
 
 from guardrails.validator_base import ErrorSpan
 from guardrails.logger import logger
-from guardrails.validators import (
+from guardrails.validator_base import (
     FailResult,
     PassResult,
     ValidationResult,
