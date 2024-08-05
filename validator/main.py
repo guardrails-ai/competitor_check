@@ -68,7 +68,8 @@ class CompetitorCheck(Validator):
         )
         self._competitors = competitors
         model = "en_core_web_trf"
-        self.nlp = spacy.load(model)
+        if self.use_local:
+            self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
         """Performs exact match to find competitors from a list in a given
