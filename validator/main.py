@@ -247,7 +247,7 @@ class CompetitorCheck(Validator):
                 },
                 {
                     "name": "competitors",
-                    "shape": [len(model_input["competitors"])],
+                    "shape": [1],
                     "data": model_input["competitors"],
                     "datatype": "BYTES"
                 }
