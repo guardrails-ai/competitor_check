@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import nltk
 import spacy
+
+from guardrails.validator_base import ErrorSpan
 from guardrails.logger import logger
 from guardrails.validator_base import ErrorSpan
 from guardrails.validators import (
@@ -261,3 +263,8 @@ class CompetitorCheck(Validator):
         outputs = response["outputs"][0]["data"][0]
 
         return outputs
+                error_spans=error_spans
+            )
+        else:
+            return PassResult()
+        
