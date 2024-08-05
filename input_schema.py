@@ -8,7 +8,7 @@ INPUT_SCHEMA = {
         "required": True,
     },
     "competitors": {
-        "example": ["Apple"],
+        "example": ["Apple", "Samsung"],
         "shape": [-1],
         "datatype": "STRING",
         "required": True,
