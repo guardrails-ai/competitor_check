@@ -195,21 +195,6 @@ class CompetitorCheck(Validator):
                         reason=f"Competitor found: {value[start:start+len(entity)]}",
                     )
                 )
-        def find_all(a_str, sub):
-            start = 0
-            while True:
-                start = a_str.find(sub, start)
-                if start == -1: 
-                    return
-                yield start
-                start += len(sub) # use start += 1 to find overlapping matches
-
-        error_spans = []
-        for entity in found_entities: 
-            starts = list(find_all(value, entity))
-            for start in starts:
-                error_spans.append(ErrorSpan(start=start, end=start+len(entity), reason=f'Competitor found: {value[start:start+len(entity)]}'))
-
 
         if len(flagged_sentences):
             return FailResult(
