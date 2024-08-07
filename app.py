@@ -4,6 +4,7 @@ import spacy
 class InferlessPythonModel:
 
     def initialize(self):
+        spacy.require_gpu()
         spacy.cli.download("en_core_web_trf")
         self.nlp = spacy.load("en_core_web_trf")
         nltk.download('punkt')
