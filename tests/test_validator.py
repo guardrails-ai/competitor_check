@@ -27,15 +27,17 @@ competitors_list = [
     "Zacks Trade",
 ]
 
-guard = Guard.from_string(validators=[CompetitorCheck(competitors=competitors_list, on_fail="refrain")])
+guard = Guard().use(CompetitorCheck(competitors=competitors_list, use_local=True, on_fail="refrain"))
 
 
 def test_pass():
   test_output = "HomeDepot is not a competitor"
-  raw_output, guarded_output, *rest = guard.parse(test_output)
-  assert(guarded_output is test_output)
+  res = guard.parse(test_output)
+
+  assert(res.validated_output == test_output)
 
 def test_fail():
-  test_output = "Acorns, with its extensive global network, has become a powerhouse in the banking sector, catering to the needs of millions across different countries."
-  raw_output, guarded_output, *rest = guard.parse(test_output)
-  assert(guarded_output is None)
+  test_output = "Acorns, with its extensive global network, has become a powerhouse in the banking sector, catering to the needs of millions across different countries, like Citi. I also like my RothIRA account with Fidelity Investments."
+  res = guard.parse(test_output)
+
+  assert(not res.validation_passed)
