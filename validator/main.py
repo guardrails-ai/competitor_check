@@ -4,7 +4,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import nltk
 import spacy
-from guardrails.logger import logger
 from guardrails.validator_base import ErrorSpan
 from guardrails.validators import (
     FailResult,
