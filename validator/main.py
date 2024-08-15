@@ -200,9 +200,6 @@ class CompetitorCheck(Validator):
         for output in response["outputs"]:
             ner_entities.append(output["data"][0])
 
-
-        print(ner_entities)
-
         return ner_entities
     
     # retuns a list of competitors found in each sentence
