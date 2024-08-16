@@ -7,8 +7,9 @@ import os
 app = FastAPI()
 # Initialize the detoxify model once
 env = os.environ.get("env", "dev")
-torch_device = "cuda" if env == "prod" else "cpu"
 
+if env == "prod":
+    spacy.require_gpu()
 
 class InferenceData(BaseModel):
     name: str
