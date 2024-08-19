@@ -250,7 +250,7 @@ class CompetitorCheck(Validator):
 
         return filtered_text
             
-    def compute_error_spans(self, sentences: List[str], competitors_per_sentence: List[List[str]]) -> str:
+    def compute_error_spans(self, sentences: List[str], competitors_per_sentence: List[List[str]]) -> List[ErrorSpan]:
         assert(len(sentences) == len(competitors_per_sentence))
 
         error_spans: List[ErrorSpan] = []
