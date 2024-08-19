@@ -4,7 +4,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import nltk
 import spacy
-from guardrails.logger import logger
 from guardrails.validator_base import ErrorSpan
 from guardrails.validators import (
     FailResult,
@@ -91,24 +90,8 @@ class CompetitorCheck(Validator):
                 found_entities.append(entity)
         return found_entities
 
-    def perform_ner(self, text: str) -> List[str]:
-        """Performs named entity recognition on text using a provided NLP
-        model.
 
-        Args:
-            text (str): The text to perform named entity recognition on.
-
-        Returns:
-            entities: A list of entities found.
-        """
-
-        doc = self.nlp(text)
-        entities = []
-        for ent in doc.ents:
-            entities.append(ent.text)
-        return entities
-
-    def is_entity_in_list(self, entities: List[str], competitors: List[str]) -> List:
+    def extract_entities_in_competitors_list(self, entities: List[str], competitors: List[str]) -> List:
         """Checks if any entity from a list is present in a given list of
         competitors.
 
@@ -144,62 +127,17 @@ class CompetitorCheck(Validator):
         """
 
         sentences = nltk.sent_tokenize(value)
-        flagged_sentences = []
-        filtered_sentences = []
-        error_spans: List[ErrorSpan] = []
-        list_of_competitors_found = []
-        start_ind = 0
-        for sentence in sentences:
-            entities = self.exact_match(sentence, self._competitors)
-            if entities:
-                ner_entities = self._inference(
-                    {"text": sentence, "competitors": self._competitors}
-                )
-                if isinstance(ner_entities, str):
-                    ner_entities = [ner_entities]
-                found_competitors = self.is_entity_in_list(ner_entities, entities)
-                if found_competitors:
-                    flagged_sentences.append((found_competitors, sentence))
-                    list_of_competitors_found.append(found_competitors)
-                    logger.debug(f"Found: {found_competitors} named in '{sentence}'")
-                else:
-                    filtered_sentences.append(sentence)
+        competitor_entities = self.find_competitor_matches(sentences)
+        error_spans = self.compute_error_spans(sentences, competitor_entities)
+        filtered_output = self.compute_filtered_output(sentences, competitor_entities)
 
-            else:
-                filtered_sentences.append(sentence)
-            start_ind += len(sentence)
+        list_of_competitors_found = self.flatten_competitors(competitor_entities)
+        
 
-        filtered_output = " ".join(filtered_sentences)
-        found_entities = []
-        for tup in flagged_sentences:
-            for entity in tup[0]:
-                found_entities.append(entity)
-
-        def find_all(a_str, sub):
-            start = 0
-            while True:
-                start = a_str.find(sub, start)
-                if start == -1:
-                    return
-                yield start
-                start += len(sub)  # use start += 1 to find overlapping matches
-
-        error_spans = []
-        for entity in found_entities:
-            starts = list(find_all(value, entity))
-            for start in starts:
-                error_spans.append(
-                    ErrorSpan(
-                        start=start,
-                        end=start + len(entity),
-                        reason=f"Competitor found: {value[start:start+len(entity)]}",
-                    )
-                )
-
-        if len(flagged_sentences):
+        if len(error_spans) > 0:
             return FailResult(
                 error_message=(
-                    f"Found the following competitors: {list_of_competitors_found}. "
+                    f"Found the following competitors: {', '.join(list_of_competitors_found)}. "
                     "Please avoid naming those competitors next time"
                 ),
                 fix_value=filtered_output,
@@ -208,32 +146,46 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
 
-    def _inference_local(self, model_input: Any) -> str:
+    def _inference_local(self, model_input: Any) -> List[List[str]]:
         """Local inference method to detect and anonymize competitor names."""
         text = model_input["text"]
         competitors = model_input["competitors"]
 
-        doc = self.nlp(text)
-        anonymized_text = text
-        for ent in doc.ents:
-            if ent.text in competitors:
-                anonymized_text = anonymized_text.replace(ent.text, "[COMPETITOR]")
-        return anonymized_text
+        if isinstance(text, str):
+            text = [text]
 
-    def _inference_remote(self, model_input: Any) -> str:
+        all_located_entities = []
+        for t in text:
+            doc = self.nlp(t)
+            located_entities = []
+            for ent in doc.ents:
+                if ent.text in competitors:
+                    located_entities.append(ent.text)
+            all_located_entities.append(located_entities)
+
+        return all_located_entities
+
+    def _inference_remote(self, model_input: Any) -> List[List[str]]:
         """Remote inference method for a hosted ML endpoint."""
+        
+        text = model_input["text"]
+        competitors = model_input["competitors"]
+
+        if isinstance(text, str):
+            text = [text]
+
         request_body = {
             "inputs": [
                 {
                     "name": "text",
-                    "shape": [1],
-                    "data": [model_input["text"]],
+                    "shape": [len(text)],
+                    "data": text,
                     "datatype": "BYTES"
                 },
                 {
                     "name": "competitors",
-                    "shape": [len(model_input["competitors"])],
-                    "data": model_input["competitors"],
+                    "shape": [len(competitors)],
+                    "data": competitors,
                     "datatype": "BYTES"
                 }
             ]
@@ -243,6 +195,81 @@ class CompetitorCheck(Validator):
         if not response or "outputs" not in response:
             raise ValueError("Invalid response from remote inference", response)
 
-        outputs = response["outputs"][0]["data"][0]
+        ner_entities = []
+        for output in response["outputs"]:
+            ner_entities.append(output["data"][0])
 
-        return outputs
+        return ner_entities
+    
+    # retuns a list of competitors found in each sentence
+    def find_competitor_matches(self, sentences: List[str]) -> List[List[str]]:
+        suspect_entity_sentences = []
+        suspect_entity_sentences_indices = []
+        for idx, sentence in enumerate(sentences):
+            entities = self.exact_match(sentence, self._competitors)
+            if entities:
+                suspect_entity_sentences.append(sentence)
+                suspect_entity_sentences_indices.append(idx)
+
+        ner_located_competitors = self._inference({
+            "text": suspect_entity_sentences,
+            "competitors": self._competitors
+        })
+
+        competitors = []
+        for idx, sentence in enumerate(sentences):
+            if idx in suspect_entity_sentences_indices:
+                ner_entities = ner_located_competitors.pop(0) 
+                competitors.append(self.extract_entities_in_competitors_list(ner_entities, self._competitors))
+            else:
+                competitors.append([])
+
+
+        return competitors
+
+    # returns the compiled value by replacing all competitor mentions with [COMPETITOR]
+    def compute_filtered_output(self, sentences: List[str], competitors_per_sentence: List[List[str]]) -> str:
+        assert(len(sentences) == len(competitors_per_sentence))
+
+        filtered_output = ""
+        for idx, sentence in enumerate(sentences):
+            competitors = competitors_per_sentence[idx]
+            filtered_output += self.filter_output_in_sentence(sentence, competitors)
+
+        return filtered_output
+    
+
+    def filter_output_in_sentence(self, sentence: str, competitors: List[str]) -> str:
+        if len(competitors) == 0:
+            return sentence
+    
+        filtered_text = sentence
+        
+        for competitor in competitors:
+            filtered_text = filtered_text.replace(competitor, "[COMPETITOR]")
+
+        return filtered_text
+            
+    def compute_error_spans(self, sentences: List[str], competitors_per_sentence: List[List[str]]) -> List[ErrorSpan]:
+        assert(len(sentences) == len(competitors_per_sentence))
+
+        error_spans: List[ErrorSpan] = []
+        for idx, sentence in enumerate(sentences):
+            competitors = competitors_per_sentence[idx]
+            
+
+            for competitor in competitors:
+                start_idx = 0
+                while sentence.find(competitor, start_idx) > -1:
+                    start_idx = sentence.find(competitor, start_idx)
+                    end_idx = start_idx + len(competitor)
+                    error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
+                    start_idx = end_idx
+
+        return error_spans
+    
+    def flatten_competitors(self, competitor_entities: List[List[str]]) -> List[str]:
+        list_of_competitors_found = []
+        for competitor in competitor_entities:
+            list_of_competitors_found.extend(competitor)
+        return list(set(list_of_competitors_found))
