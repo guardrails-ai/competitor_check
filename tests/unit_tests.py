@@ -67,8 +67,3 @@ def compare_error_spans_lists(span_list1, span_list2):
         if not compare_error_spans(span_list1[i], span_list2[i]):
             return False
     return True
-
-test_filter_output_in_sentence()
-test_compute_filtered_output()
-test_compute_error_spans()
-test_find_competitor_matches()
