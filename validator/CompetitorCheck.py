@@ -71,7 +71,7 @@ class CompetitorCheck(Validator):
             self.nlp = spacy.load(model)
 
     def exact_match(self, text: str, competitors: List[str]) -> List[str]:
-        """Performs case-insensitive exact match to find competitors from a list in a given
+        """Performs exact match to find competitors from a list in a given
         text.
 
         Args:

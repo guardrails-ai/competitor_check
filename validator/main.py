@@ -85,7 +85,7 @@ class CompetitorCheck(Validator):
         found_entities = []
         for entity in competitors:
             pattern = rf"\b{re.escape(entity)}\b"
-            match = re.search(pattern.lower(), text.lower())
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 found_entities.append(entity)
         return found_entities
@@ -107,7 +107,7 @@ class CompetitorCheck(Validator):
         for entity in entities:
             for item in competitors:
                 pattern = rf"\b{re.escape(item)}\b"
-                match = re.search(pattern.lower(), entity.lower())
+                match = re.search(pattern, entity, re.IGNORECASE)
                 if match:
                     found_competitors.append(item)
         return found_competitors
@@ -159,7 +159,7 @@ class CompetitorCheck(Validator):
             doc = self.nlp(t)
             located_entities = []
             for ent in doc.ents:
-                if ent.text in competitors:
+                if ent.text.lower() in [comp.lower() for comp in competitors]:
                     located_entities.append(ent.text)
             all_located_entities.append(located_entities)
 
@@ -246,7 +246,8 @@ class CompetitorCheck(Validator):
         filtered_text = sentence
         
         for competitor in competitors:
-            filtered_text = filtered_text.replace(competitor, "[COMPETITOR]")
+            pattern = re.compile(re.escape(competitor), re.IGNORECASE)
+            filtered_text = pattern.sub("[COMPETITOR]", filtered_text)
 
         return filtered_text
             
@@ -259,12 +260,10 @@ class CompetitorCheck(Validator):
             
 
             for competitor in competitors:
-                start_idx = 0
-                while sentence.find(competitor, start_idx) > -1:
-                    start_idx = sentence.find(competitor, start_idx)
-                    end_idx = start_idx + len(competitor)
+                pattern = re.compile(re.escape(competitor), re.IGNORECASE)
+                for match in pattern.finditer(sentence):
+                    start_idx, end_idx = match.span()
                     error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
-                    start_idx = end_idx
 
         return error_spans
     
