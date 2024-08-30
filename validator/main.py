@@ -126,10 +126,10 @@ class CompetitorCheck(Validator):
             ValidationResult: The validation result.
         """
 
-        sentences = nltk.sent_tokenize(value)
-        competitor_entities = self.find_competitor_matches(sentences)
-        error_spans = self.compute_error_spans(sentences, competitor_entities)
-        filtered_output = self.compute_filtered_output(sentences, competitor_entities)
+        self.original_sentences = nltk.sent_tokenize(value)  # Store the original sentences
+        competitor_entities = self.find_competitor_matches(self.original_sentences)
+        error_spans = self.compute_error_spans(self.original_sentences, competitor_entities)
+        filtered_output = self.compute_filtered_output(self.original_sentences, competitor_entities)
 
         list_of_competitors_found = self.flatten_competitors(competitor_entities)
         
@@ -264,14 +264,20 @@ class CompetitorCheck(Validator):
                 start_idx = 0
                 while sentence_lower.find(competitor_lower, start_idx) > -1:
                     start_idx = sentence_lower.find(competitor_lower, start_idx)
-                    end_idx = start_idx + len(competitor)
-                    error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
+                    end_idx = start_idx + len(competitor_lower)
+                    actual_text = sentence[start_idx:end_idx]  
+                    error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {actual_text}"))
                     start_idx = end_idx
 
         return error_spans
     
     def flatten_competitors(self, competitor_entities: List[List[str]]) -> List[str]:
         list_of_competitors_found = []
-        for competitor in competitor_entities:
-            list_of_competitors_found.extend(competitor)
+        for sentence in self.original_sentences: 
+            sentence_lower = sentence.lower()
+            for competitor in self._competitors:
+                if competitor.lower() in sentence_lower:
+                    start_idx = sentence_lower.index(competitor.lower())
+                    actual_text = sentence[start_idx:start_idx+len(competitor)]
+                    list_of_competitors_found.append(actual_text)
         return list(set(list_of_competitors_found))
