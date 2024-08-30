@@ -257,13 +257,16 @@ class CompetitorCheck(Validator):
         error_spans: List[ErrorSpan] = []
         for idx, sentence in enumerate(sentences):
             competitors = competitors_per_sentence[idx]
-            
+            sentence_lower = sentence.lower()
 
             for competitor in competitors:
-                pattern = re.compile(re.escape(competitor), re.IGNORECASE)
-                for match in pattern.finditer(sentence):
-                    start_idx, end_idx = match.span()
+                competitor_lower = competitor.lower()
+                start_idx = 0
+                while sentence_lower.find(competitor_lower, start_idx) > -1:
+                    start_idx = sentence_lower.find(competitor_lower, start_idx)
+                    end_idx = start_idx + len(competitor)
                     error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
+                    start_idx = end_idx
 
         return error_spans
     
