@@ -246,8 +246,7 @@ class CompetitorCheck(Validator):
         filtered_text = sentence
         
         for competitor in competitors:
-            pattern = re.compile(re.escape(competitor), re.IGNORECASE)
-            filtered_text = pattern.sub("[COMPETITOR]", filtered_text)
+            filtered_text = filtered_text.replace(competitor, "[COMPETITOR]")
 
         return filtered_text
             
@@ -260,10 +259,12 @@ class CompetitorCheck(Validator):
             
 
             for competitor in competitors:
-                pattern = re.compile(re.escape(competitor), re.IGNORECASE)
-                for match in pattern.finditer(sentence):
-                    start_idx, end_idx = match.span()
+                start_idx = 0
+                while sentence.find(competitor, start_idx) > -1:
+                    start_idx = sentence.find(competitor, start_idx)
+                    end_idx = start_idx + len(competitor)
                     error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
+                    start_idx = end_idx
 
         return error_spans
     
