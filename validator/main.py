@@ -155,15 +155,18 @@ class CompetitorCheck(Validator):
             text = [text]
 
         all_located_entities = []
+        competitors_lowercase = [comp.lower() for comp in competitors]  
+
         for t in text:
             doc = self.nlp(t)
             located_entities = []
             for ent in doc.ents:
-                if ent.text.lower() in [comp.lower() for comp in competitors]:
+                if ent.text.lower() in competitors_lowercase:
                     located_entities.append(ent.text)
             all_located_entities.append(located_entities)
 
         return all_located_entities
+
 
     def _inference_remote(self, model_input: Any) -> List[List[str]]:
         """Remote inference method for a hosted ML endpoint."""
