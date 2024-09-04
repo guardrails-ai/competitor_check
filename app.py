@@ -40,6 +40,7 @@ class CompetitorCheck:
 
             located_competitors = []
             for ent in doc.ents:
+                print(f"Detected entity: {ent.text}")  # Add this line
                 if ent.text.lower() in competitors:
                     located_competitors.append(ent.text)
 
@@ -56,7 +57,10 @@ class CompetitorCheck:
             modelname=CompetitorCheck.model_name, modelversion="1", outputs=outputs
         )
 
+        print(f"Output data: {output_data}")  # Add this line
+
         return output_data.model_dump()
+
     
 @app.post("/validate", response_model=OutputResponse)
 async def competitor_check(input_request: InputRequest):
