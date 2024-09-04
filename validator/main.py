@@ -284,4 +284,3 @@ class CompetitorCheck(Validator):
                     actual_text = sentence[start_idx:start_idx+len(competitor)]
                     list_of_competitors_found.append(actual_text)
         return list(set(list_of_competitors_found))
-    
