@@ -4,7 +4,7 @@ from validator.main import CompetitorCheck
 
 # Setup Guard with CompetitorCheck validator
 guard = Guard().use(
-    CompetitorCheck, ["Apple", "Samsung"], "exception"
+    CompetitorCheck, ["Apple", "Samsung"], "exception", use_local=True
 )
 
 # Test passing response (no competitor mentioned)
