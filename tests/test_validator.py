@@ -1,6 +1,6 @@
 import pytest
 from guardrails import Guard
-from guardrails.hub import CompetitorCheck
+from validator.main import CompetitorCheck
 
 # Setup Guard with CompetitorCheck validator
 guard = Guard().use(
