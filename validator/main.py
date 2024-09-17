@@ -85,7 +85,7 @@ class CompetitorCheck(Validator):
         found_entities = []
         for entity in competitors:
             pattern = rf"\b{re.escape(entity)}\b"
-            match = re.search(pattern.lower(), text.lower())
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 found_entities.append(entity)
         return found_entities
@@ -107,7 +107,7 @@ class CompetitorCheck(Validator):
         for entity in entities:
             for item in competitors:
                 pattern = rf"\b{re.escape(item)}\b"
-                match = re.search(pattern.lower(), entity.lower())
+                match = re.search(pattern, entity, re.IGNORECASE)
                 if match:
                     found_competitors.append(item)
         return found_competitors
@@ -126,10 +126,10 @@ class CompetitorCheck(Validator):
             ValidationResult: The validation result.
         """
 
-        sentences = nltk.sent_tokenize(value)
-        competitor_entities = self.find_competitor_matches(sentences)
-        error_spans = self.compute_error_spans(sentences, competitor_entities)
-        filtered_output = self.compute_filtered_output(sentences, competitor_entities)
+        self.original_sentences = nltk.sent_tokenize(value)  # Store the original sentences
+        competitor_entities = self.find_competitor_matches(self.original_sentences)
+        error_spans = self.compute_error_spans(self.original_sentences, competitor_entities)
+        filtered_output = self.compute_filtered_output(self.original_sentences, competitor_entities)
 
         list_of_competitors_found = self.flatten_competitors(competitor_entities)
         
@@ -155,15 +155,18 @@ class CompetitorCheck(Validator):
             text = [text]
 
         all_located_entities = []
+        competitors_lowercase = [comp.lower() for comp in competitors]  
+
         for t in text:
             doc = self.nlp(t)
             located_entities = []
             for ent in doc.ents:
-                if ent.text in competitors:
+                if ent.text.lower() in competitors_lowercase:
                     located_entities.append(ent.text)
             all_located_entities.append(located_entities)
 
         return all_located_entities
+
 
     def _inference_remote(self, model_input: Any) -> List[List[str]]:
         """Remote inference method for a hosted ML endpoint."""
@@ -246,7 +249,8 @@ class CompetitorCheck(Validator):
         filtered_text = sentence
         
         for competitor in competitors:
-            filtered_text = filtered_text.replace(competitor, "[COMPETITOR]")
+            pattern = re.compile(re.escape(competitor), re.IGNORECASE)
+            filtered_text = pattern.sub("[COMPETITOR]", filtered_text)
 
         return filtered_text
             
@@ -256,20 +260,28 @@ class CompetitorCheck(Validator):
         error_spans: List[ErrorSpan] = []
         for idx, sentence in enumerate(sentences):
             competitors = competitors_per_sentence[idx]
-            
+            sentence_lower = sentence.lower()
 
             for competitor in competitors:
+                competitor_lower = competitor.lower()
                 start_idx = 0
-                while sentence.find(competitor, start_idx) > -1:
-                    start_idx = sentence.find(competitor, start_idx)
-                    end_idx = start_idx + len(competitor)
-                    error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {competitor}"))
+                while sentence_lower.find(competitor_lower, start_idx) > -1:
+                    start_idx = sentence_lower.find(competitor_lower, start_idx)
+                    end_idx = start_idx + len(competitor_lower)
+                    actual_text = sentence[start_idx:end_idx]  
+                    error_spans.append(ErrorSpan(start=start_idx, end=end_idx, reason=f"Competitor was found: {actual_text}"))
                     start_idx = end_idx
 
         return error_spans
     
     def flatten_competitors(self, competitor_entities: List[List[str]]) -> List[str]:
         list_of_competitors_found = []
-        for competitor in competitor_entities:
-            list_of_competitors_found.extend(competitor)
+        for sentence in self.original_sentences: 
+            sentence_lower = sentence.lower()
+            for competitor in self._competitors:
+                if competitor.lower() in sentence_lower:
+                    start_idx = sentence_lower.index(competitor.lower())
+                    actual_text = sentence[start_idx:start_idx+len(competitor)]
+                    list_of_competitors_found.append(actual_text)
         return list(set(list_of_competitors_found))
+    
