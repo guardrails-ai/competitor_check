@@ -31,7 +31,7 @@ class InferenceSpec(BaseInferenceSpec):
                 f"Spacy model {model_name} not installed. "
                 "Download should start now and take a few minutes."
             )
-            spacy.cli.download(model)  # type: ignore
+            spacy.cli.download(model_name)  # type: ignore
         self.model = spacy.load(model_name)
 
     def process_request(self, input_request: InputRequest) -> Tuple[Tuple, dict]:
