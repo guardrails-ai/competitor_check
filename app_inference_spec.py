@@ -49,7 +49,7 @@ class InferenceSpec(BaseInferenceSpec):
         kwargs = {}
         return args, kwargs
 
-    def infer(self, text_vals, competitors):
+    def infer(self, text_vals, competitors) -> OutputResponse:
         outputs = []
         for idx, text in enumerate(text_vals):
             doc = self.model(text) # type: ignore
@@ -72,4 +72,4 @@ class InferenceSpec(BaseInferenceSpec):
             modelname=self.model_name, modelversion="1", outputs=outputs
         )
 
-        return output_data.model_dump()
+        return output_data
