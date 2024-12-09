@@ -27,18 +27,21 @@ class OutputResponse(BaseModel):
     modelversion: str
     outputs: List[InferenceData]
 
+
 class CompetitorCheck:
     model_name = "en_core_web_trf"
     nlp = spacy.load(model_name)
 
-    def infer(text_vals, competitors):
+    @classmethod
+    def infer(cls, text_vals: list[str], competitors: set[str]):
         outputs = []
+        competitors = [c.lower() for c in competitors]
         for idx, text in enumerate(text_vals):
             doc = CompetitorCheck.nlp(text)
 
             located_competitors = []
             for ent in doc.ents:
-                if ent.text in competitors:
+                if ent.text.lower() in competitors:
                     located_competitors.append(ent.text)
 
             outputs.append(
