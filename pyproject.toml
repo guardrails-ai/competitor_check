@@ -7,12 +7,12 @@ authors = [
 ]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">= 3.8.1"
+requires-python = ">= 3.9"
 dependencies = [
-    "nltk",
-    "spacy",
-    "numpy<2.0",  # When spacy starts to support numpy >= 2.0, we can remove this pin.
-    "guardrails-ai>=0.4.0"
+    "guardrails-ai>=0.6.0",
+    "sentence-splitter>=1.4",
+    "transformers>=4.40.2",
+    "torch>=2.0"
 ]
 
 [project.optional-dependencies]

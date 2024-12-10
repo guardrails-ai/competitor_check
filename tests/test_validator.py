@@ -2,6 +2,7 @@
 # pytest test/test-validator.py
 
 from guardrails import Guard
+from guardrails.validators import PassResult, FailResult
 from validator import CompetitorCheck
 
 # We use 'refrain' as the validator's fail action,
@@ -27,17 +28,37 @@ competitors_list = [
     "Zacks Trade",
 ]
 
-guard = Guard().use(CompetitorCheck(competitors=competitors_list, use_local=True, on_fail="refrain"))
-
 
 def test_pass():
-  test_output = "HomeDepot is not a competitor"
-  res = guard.parse(test_output)
+    v = CompetitorCheck(
+        competitors=[
+            "JP Morgan Chase",
+            "Alphabet Incorporated",
+            "Google Inc",
+            "Apple Inc",
+        ],
+        use_local=True,
+        threshold=0.5,
+    )
+    assert isinstance(v.validate("This must be fine."), PassResult)
+    assert isinstance(v.validate("I use Bing."), PassResult)
+    assert isinstance(v.validate("My cat chased my dog."), PassResult)
+    assert isinstance(v.validate("I baked an apple pie."), PassResult)
+    assert isinstance(v.validate("I searched the internet for info."), PassResult)
 
-  assert(res.validated_output == test_output)
 
 def test_fail():
-  test_output = "Acorns, with its extensive global network, has become a powerhouse in the banking sector, catering to the needs of millions across different countries, like Citi. I also like my RothIRA account with Fidelity Investments."
-  res = guard.parse(test_output)
-
-  assert(not res.validation_passed)
+    v = CompetitorCheck(
+        competitors=[
+            "JP Morgan Chase",
+            "Alphabet Incorporated",
+            "Google Inc",
+            "Apple Inc",
+        ],
+        use_local=True,
+        threshold=0.5,
+    )
+    assert isinstance(v.validate("I bought an iPhone."), FailResult)
+    assert isinstance(v.validate("I use Google Photos."), FailResult)
+    assert isinstance(v.validate("My mortgage comes from Chase Bank."), FailResult)
+    assert isinstance(v.validate("I googled how to bake a pie on my Macbook."), FailResult)
