@@ -15,8 +15,10 @@ This validator ensures that no competitors for an organization are being named. 
 ### Requirements
 
 * Dependencies:
-    - guardrails-ai>=0.4.0
-    - nltk
+    - guardrails-ai>=0.5.0
+    - transformers
+    - torch
+    - sentence_splitter
 
 ## Installation
 
@@ -38,7 +40,7 @@ from guardrails.hub import CompetitorCheck
 
 # Setup Guard
 guard = Guard().use(
-    CompetitorCheck, ["Apple", "Samsung"], "exception"
+    CompetitorCheck, ["Apple Inc", "Samsung"], "exception"
 )
 
 response = guard.validate(
@@ -66,7 +68,7 @@ from guardrails.hub import CompetitorCheck
 from guardrails import Guard
 
 # Initialize Validator
-val = CompetitorCheck(competitors=["Apple", "Samsung"], on_fail="exception")
+val = CompetitorCheck(competitors=["Apple Inc", "Samsung"], on_fail="exception")
 
 
 # Create Pydantic BaseModel

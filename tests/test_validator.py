@@ -1,7 +1,6 @@
 # to run these, run 
 # pytest test/test-validator.py
 
-from guardrails import Guard
 from guardrails.validators import PassResult, FailResult
 from validator import CompetitorCheck
 

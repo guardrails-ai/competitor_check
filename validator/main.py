@@ -58,7 +58,7 @@ class CompetitorCheck(Validator):
         (if run) is case-insensitive.  It is advisable to use the most common
         capitalization: i.e., "US Postal Service" instead of "us Postal sErViCe".
 
-        enable_direct_match_prefilter (bool): Defaults to True. If true, will
+        enable_direct_match_prefilter (bool): Defaults to False. If true, will
         perform a case-insensitive search across the text for each of the
         competitors before attempting to use the ML model.  For example, the text,
         "It's a lovely day." does not have the substring 'Guardrails', so there's
@@ -66,7 +66,8 @@ class CompetitorCheck(Validator):
         speed in the case where a competitor is mentioned, but comes at the cost
         of a higher false negative rate.  This value should be set to false if a
         competitor has multiple nuanced spellings or variations in spacing, for
-        example: "USPS" and "US Postal Service" and "United States Postal Service".
+        example: "USPS" and "US Postal Service" and "United States Postal Service" or
+        if the competitor is an extremely common term like 'Apple'.
 
         sentence_splitter_language: Defaults to "en" and should generally not be
         changed.  The underlying model is focused on English but may work, at least
@@ -78,7 +79,7 @@ class CompetitorCheck(Validator):
             self,
             competitors: List[str],
             threshold: float = 0.5,
-            enable_direct_match_prefilter: bool = True,
+            enable_direct_match_prefilter: bool = False,
             sentence_splitter_language: str = "en",
             on_fail: Optional[Callable] = None,
             **kwargs,
@@ -92,7 +93,7 @@ class CompetitorCheck(Validator):
 
         if sentence_splitter_language not in sentence_splitter_supported_languages:
             valid_languages = ", ".join([
-                f"'{k}': {v}" for k,v in sentence_splitter_supported_languages.items()
+                f"'{k}': {v}" for k, v in sentence_splitter_supported_languages.items()
             ])
             raise ValueError(f"The specified language '{sentence_splitter_language}' is"
                              f"not supported.  Valid languages are {valid_languages}")
@@ -141,24 +142,25 @@ class CompetitorCheck(Validator):
         # Do NOT just " ".join because that doesn't preserve spacing.
         return [sentences[0], chunk.lstrip(sentences[0])]
 
-    def exact_match(self, text: str, competitors: List[str]) -> List[str]:
+    @staticmethod
+    def exact_match(texts: list[str], competitors: List[str]) -> List[bool]:
         """Performs exact match to find competitors from a list in a given
         text.
 
         Args:
-            text (str): The text to search for competitors.
+            texts (list[str]): An array of sentences to check for competitors.
             competitors (list): A list of competitor entities to match.
 
         Returns:
-            list: A list of matched entities.
+            A list of booleans, true when a sentence may contain a competitor.
         """
-
+        competitor_regex = re.compile(
+            r"|".join([re.escape(c.lower()) for c in competitors])
+        )
         found_entities = []
-        for entity in competitors:
-            pattern = rf"\b{re.escape(entity)}\b"
-            match = re.search(pattern.lower(), text.lower())
-            if match:
-                found_entities.append(entity)
+        for t in texts:
+            match = re.search(competitor_regex, t.lower())
+            found_entities.append(bool(match))
         return found_entities
 
     def validate(
@@ -184,10 +186,23 @@ class CompetitorCheck(Validator):
         # We can expect to get full sentences, but we might get paragraphs, too.
         sentences = self.sentence_splitter.split(value)
 
-        detected_competitors = self._inference({
-            "text": sentences,
-            "competitors": metadata.get("competitors", self.competitors)
-        })
+        if self.prefilter:
+            detected_competitors = list()
+            potential_matches = self.exact_match(sentences, self.competitors)
+            # This may call _inference multiple times.  Should we find another way?
+            for needs_checking, sentence in zip(potential_matches, sentences):
+                if not needs_checking:
+                    detected_competitors.append({})
+                else:
+                    detected_competitors.append(self._inference({
+                        "text": [sentence,],
+                        "competitors": metadata.get("competitors", self.competitors)
+                    })[0])
+        else:
+            detected_competitors = self._inference({
+                "text": sentences,
+                "competitors": metadata.get("competitors", self.competitors)
+            })
 
         error_spans = self.compute_error_spans(sentences, detected_competitors)
 
