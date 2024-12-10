@@ -39,6 +39,7 @@ def test_pass():
         ],
         use_local=True,
         threshold=0.5,
+        on_fail='noop',
     )
     assert isinstance(v.validate("This must be fine."), PassResult)
     assert isinstance(v.validate("I use Bing."), PassResult)
@@ -57,8 +58,9 @@ def test_fail():
         ],
         use_local=True,
         threshold=0.5,
+        on_fail='noop',
     )
     assert isinstance(v.validate("I bought an iPhone."), FailResult)
     assert isinstance(v.validate("I use Google Photos."), FailResult)
-    assert isinstance(v.validate("My mortgage comes from Chase Bank."), FailResult)
-    assert isinstance(v.validate("I googled how to bake a pie on my Macbook."), FailResult)
+    assert isinstance(v.validate("My mortgage comes from Chase."), FailResult)
+    assert isinstance(v.validate("I googled how to bake a pie on my Apple MacBook."), FailResult)

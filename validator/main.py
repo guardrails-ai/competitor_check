@@ -196,13 +196,18 @@ class CompetitorCheck(Validator):
             filtered_output = self.compute_filtered_output(sentences, error_spans)
             competitors_found = ", ".join(self.flatten_competitors(detected_competitors))
 
+            # Couldn't we do sum(error_spans)?
+            combined_error_spans = []
+            for e in error_spans:
+                combined_error_spans.extend(e)
+
             return FailResult(
                 error_message=(
                     f"Found the following competitors: {competitors_found}. "
                     "Please avoid naming those competitors next time."
                 ),
                 fix_value=filtered_output,
-                error_spans=error_spans,
+                error_spans=combined_error_spans,
             )
         else:
             return PassResult()
@@ -326,7 +331,7 @@ class CompetitorCheck(Validator):
             else:
                 # We need to sort the error spans from last to first so we don't mess
                 # up the indexing of the errors.
-                for e in sorted(errors, key=lambda err: -e.start):
+                for e in sorted(errors, key=lambda err: -err.start):
                     sentence = sentence[:e.start] + "[COMPETITOR]" + sentence[e.end:]
                 filtered_outputs.append(sentence)
         return filtered_outputs
@@ -342,7 +347,8 @@ class CompetitorCheck(Validator):
         we tracked the data separately, but it's not an expensive operation and makes
         for cleaner code."""
         list_of_competitors_found = set()
-        for competitor, probability in detected_competitors:
-            if probability > self.threshold:
-                list_of_competitors_found.add(competitor)
+        for sentence_dc in detected_competitors:
+            for competitor, probability in sentence_dc.items():
+                if probability > self.threshold:
+                    list_of_competitors_found.add(competitor)
         return list(list_of_competitors_found)
