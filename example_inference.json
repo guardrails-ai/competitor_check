@@ -1,0 +1,16 @@
+{
+    "inputs": [
+        {
+            "name": "text",
+            "shape": [1],
+            "data": ["Apple made the iphone"],
+            "datatype": "BYTES"
+        },
+        {
+            "name": "competitors",
+            "shape": [1],
+            "data": ["Apple"],
+            "datatype": "BYTES"
+        }
+    ]
+}
