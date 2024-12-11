@@ -265,6 +265,41 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
 
+    def predict(
+            self,
+            texts: List[str],
+            competitors: Optional[List[str]] = None,
+            competitor_types: Optional[List[str]] = None,
+            reduction_function: Callable = max,
+    ) -> List[float]:
+        """Given an array of sentences, perform NER for the given types and return a
+        single float prediction per text.  Reduction function should take a list and
+        return a single float.  Defaults to 'max'."""
+        if competitor_types is None:
+            competitor_types = self.competitor_types
+
+        if competitors is None:
+            competitors = set([c.lower() for c in self.competitors])
+        else:
+            competitors = set([c.lower() for c in competitors])
+
+        all_scores = list()
+        for sentence in texts:
+            scores = list()
+            detections = self.model.predict_entities(
+                sentence,
+                competitor_types,
+                threshold=self.DETECTION_THRESHOLD
+            )
+            for d in detections:
+                if d['text'].lower() in competitors:
+                    scores.append(d['score'])
+            if scores:
+                all_scores.append(reduction_function(scores))
+            else:
+                all_scores.append(0.0)
+        return all_scores
+
     def _inference_local(self, model_input: Dict) -> List[List[NERDetection]]:
         """Local inference method to detect and anonymize competitor names.
         Returns a list per sentence with NER detections."""
