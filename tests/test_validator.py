@@ -4,29 +4,6 @@
 from guardrails.validators import PassResult, FailResult
 from validator import CompetitorCheck
 
-# We use 'refrain' as the validator's fail action,
-#  so we expect failures to always result in a guarded output of None
-# Learn more about corrective actions here:
-#  https://www.guardrailsai.com/docs/concepts/output/#%EF%B8%8F-specifying-corrective-actions
-competitors_list = [
-    "Acorns",
-    "Citigroup",
-    "Citi",
-    "Fidelity Investments",
-    "Fidelity",
-    "JP Morgan Chase and company",
-    "JP Morgan",
-    "JP Morgan Chase",
-    "JPMorgan Chase",
-    "Chase" "M1 Finance",
-    "Stash Financial Incorporated",
-    "Stash",
-    "Tastytrade Incorporated",
-    "Tastytrade",
-    "ZacksTrade",
-    "Zacks Trade",
-]
-
 
 def test_pass():
     v = CompetitorCheck(
@@ -60,6 +37,27 @@ def test_fail():
     assert isinstance(v.validate("I bought an Apple iPhone."), FailResult)
     assert isinstance(v.validate("Android is Google's phone offering."), FailResult)
     assert isinstance(v.validate("My mortgage comes from Chase."), FailResult)
-    res = v.validate("I googled how to bake a pie on my Apple MacBook.")
-    print(res.outcome)
-    assert isinstance(res, FailResult)
+    assert isinstance(v.validate("I googled how to bake a pie on my Apple device."), FailResult)
+
+
+def test_fix_on_fail():
+    v = CompetitorCheck(
+        competitors=[
+            "Man United",
+            "Manchester United",
+            "Manchester United F.C."
+        ],
+        use_local=True,
+        on_fail="fix",
+    )
+    text = """Man United paid a visit to a London Children's Oncology ward earlier this
+    evening.  "It's just so sad to see their little faces. They know there's no hope,"
+    said Billy, age 11, of the footballers.  Manchester United has yet to respond."""
+    fixed = """[COMPETITOR] paid a visit to a London Children's Oncology ward earlier this
+    evening.  "It's just so sad to see their little faces. They know there's no hope,"
+    said Billy, age 11, of the footballers.  [COMPETITOR] has yet to respond."""
+    res = v.validate(text)
+    assert res.fix_value == fixed
+    # Also check if we pass in an array we get an array out.
+    res = v.validate([text,])
+    assert res.fix_value[0] == fixed

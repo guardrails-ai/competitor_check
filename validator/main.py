@@ -191,7 +191,7 @@ class CompetitorCheck(Validator):
         filtering out all flagged sentences.
 
         Args:
-            value (str): The value to be validated.
+            value (str|list[str]): The value to be validated.
             metadata (Dict, optional): Additional metadata. Defaults to empty dict.
             'competitor_types', 'competitors', and 'threshold' can be overridden.
 
@@ -201,8 +201,12 @@ class CompetitorCheck(Validator):
         if metadata is None:
             metadata = dict()
 
-        # We can expect to get full sentences, but we might get paragraphs, too.
-        sentences = self.sentence_splitter.split(value)
+        if isinstance(value, str):
+            single_string = True
+            sentences = [value,]
+        else:
+            single_string = False
+            sentences = value
 
         if self.prefilter:
             candidate_competitors = list()
@@ -238,6 +242,12 @@ class CompetitorCheck(Validator):
         if any([e for e in error_spans]):
             filtered_output = self.compute_filtered_output(sentences, error_spans)
             competitors_found = ", ".join(detected_competitors)
+
+            if single_string:
+                # We got a single string passed into the validator, so it makes sense
+                # for us to flatten the filtered output.
+                assert len(filtered_output) == 1
+                filtered_output = filtered_output[0]
 
             # Couldn't we do sum(error_spans)?
             combined_error_spans = []
