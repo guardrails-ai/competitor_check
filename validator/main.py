@@ -1,7 +1,9 @@
 import json
 import re
-from typing import Any, Callable, Dict, List, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from gliner import GLiNER
 from guardrails.validator_base import ErrorSpan
 from guardrails.validators import (
     FailResult,
@@ -10,9 +12,7 @@ from guardrails.validators import (
     Validator,
     register_validator,
 )
-
 from sentence_splitter import SentenceSplitter
-from transformers import pipeline
 
 
 sentence_splitter_supported_languages = {
@@ -42,6 +42,15 @@ sentence_splitter_supported_languages = {
 }
 
 
+@dataclass
+class NERDetection:
+    name: str
+    entity_type: str
+    start: int
+    end: int
+    probability: float
+
+
 @register_validator(
     name="guardrails/competitor_check", data_type="string", has_guardrails_endpoint=True
 )
@@ -69,20 +78,25 @@ class CompetitorCheck(Validator):
         example: "USPS" and "US Postal Service" and "United States Postal Service" or
         if the competitor is an extremely common term like 'Apple'.
 
-        ignore_locations (bool): Defaults to 'False'.  If true, will discard named
-        entities that are recognized as location mentions. This can help to discard
-        false positives for companies which happen to share names with directions,
-        like Northwestern, but can be problematic for synecdoche, for example:
-        "Chicago beat Philadelphia in the 2016 world cup."
+        named_entity_types: (list[str]): A list of competitor 'types' to be detected.
+        By default, this is simply ['organization', 'brand', 'company'].  If desired,
+        it is possible to specify, for example, ['product', 'location', 'group',] or
+        ['bank',]. These will change the sensitivity and sensitibilities of the model
+        and may require commensurate changes in the threshold.
+
     """
+
+    # This is only used to filter out noise. The threshold defined in the init is what
+    # determines the actual pass/fail.
+    DETECTION_THRESHOLD = 0.01
 
     def __init__(
             self,
             competitors: List[str],
             threshold: float = 0.5,
             enable_direct_match_prefilter: bool = False,
-            ignore_locations: bool = False,
             sentence_splitter_language: str = "en",
+            competitor_types: Optional[List[str]] = None,  # Default: ["organization",].
             on_fail: Optional[Callable] = None,
             **kwargs,
     ):
@@ -92,6 +106,9 @@ class CompetitorCheck(Validator):
             on_fail=on_fail,
             **kwargs,
         )
+
+        if competitor_types is None:
+            competitor_types = ["organization",]
 
         if sentence_splitter_language not in sentence_splitter_supported_languages:
             valid_languages = ", ".join([
@@ -110,71 +127,10 @@ class CompetitorCheck(Validator):
 
         self.threshold = threshold
         self.competitors = competitors
+        self.competitor_types = competitor_types
         self.prefilter = enable_direct_match_prefilter
-        self.ignore_locations = ignore_locations
         self.sentence_splitter = SentenceSplitter(language=sentence_splitter_language)
-        self.model = pipeline("ner", "dslim/bert-base-NER")
-
-    def postprocess_ner_results(
-            self,
-            sentences: List[str],
-            results: List[List[Dict[str, Any]]]
-    ) -> List[List[Dict[str, Any]]]:
-        """Given a batch of NER outputs of the following form:
-
-        [  # For each sentence...
-          [  # An array of NER matches...
-            { with 'entity', 'score', 'index', 'word', 'start', and 'end' },
-          ],
-        ],
-
-        combine the 'B-ORG' and 'I-ORG' entities into appropriate substrings.  Score
-        will be the 'max' matching score of any inside a continuous block of entities.
-
-        Outputs [ # For each sentence,
-        [ # An array of matches...
-          {
-            'start': idx,
-            'end': idx,
-            'score': float
-            'text': extracted text from the original sentence.
-          }
-        ]
-        """
-        reformatted_results = list()
-        for sentence, ner_result in zip(sentences, results):
-            sentence_entities = list()
-            accumulator = None
-            for r in ner_result:
-                if r['entity'] in {'B-PER', 'B-ORG', 'B-LOC', 'B-MISC'}:
-                    # Push our last entity to the pile before starting a new one:
-                    if accumulator is not None:
-                        sentence_entities.append(accumulator)
-                    if self.ignore_locations and r['entity'].endswith('LOC'):
-                        accumulator = None
-                        continue
-                    accumulator = {
-                        'start': r['start'],
-                        'end': r['end'],
-                        'score': r['score'],
-                    }
-                elif accumulator and r['entity'] in {'I-PER', 'I-ORG', 'I-LOC', 'I-MISC'}:
-                    accumulator['end'] = r['end']
-                    accumulator['score'] = \
-                        max(r['score'], accumulator['score'])
-                else:
-                    # We've encountered something flagged that is none of the above.
-                    if accumulator is not None:
-                        sentence_entities.append(accumulator)
-                    accumulator = None
-            # We may have a dangling entity accumulator:
-            if accumulator is not None:
-                sentence_entities.append(accumulator)
-            # Postprocess this sentence and add the text.
-            for ent in sentence_entities:
-                ent['text'] = sentence[ent['start']:ent['end']]
-            reformatted_results.append(sentence_entities)
-        return reformatted_results
+        self.model = GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
 
     def _chunking_function(self, chunk: str) -> List[str]:
         """
@@ -237,6 +193,7 @@ class CompetitorCheck(Validator):
         Args:
             value (str): The value to be validated.
             metadata (Dict, optional): Additional metadata. Defaults to empty dict.
+            'competitor_types', 'competitors', and 'threshold' can be overridden.
 
         Returns:
             ValidationResult: The validation result.
@@ -248,29 +205,39 @@ class CompetitorCheck(Validator):
         sentences = self.sentence_splitter.split(value)
 
         if self.prefilter:
-            detected_competitors = list()
+            candidate_competitors = list()
             potential_matches = self.exact_match(sentences, self.competitors)
-            # This may call _inference multiple times.  Should we find another way?
             for needs_checking, sentence in zip(potential_matches, sentences):
                 if not needs_checking:
-                    detected_competitors.append({})
+                    candidate_competitors.append([])
                 else:
-                    detected_competitors.append(self._inference({
-                        "text": [sentence,],
-                        "competitors": metadata.get("competitors", self.competitors)
+                    candidate_competitors.append(self._inference({
+                        "texts": [sentence,],
+                        "competitor_types": metadata.get(
+                            "competitor_types",
+                            self.competitor_types
+                        )
                     })[0])
         else:
-            detected_competitors = self._inference({
-                "text": sentences,
-                "competitors": metadata.get("competitors", self.competitors)
+            candidate_competitors = self._inference({
+                "texts": sentences,
+                "competitor_types": metadata.get(
+                    "competitor_types",
+                    self.competitor_types
+                )
             })
 
-        error_spans = self.compute_error_spans(sentences, detected_competitors)
+        detected_competitors, error_spans = CompetitorCheck.compute_error_spans(
+            sentences,
+            competitors=metadata.get("competitors", self.competitors),
+            detected_competitors=candidate_competitors,
+            threshold=metadata.get("threshold", self.threshold),
+        )
 
         # Error spans is a list of lists.  If any is NOT empty, then we have an error.
         if any([e for e in error_spans]):
             filtered_output = self.compute_filtered_output(sentences, error_spans)
-            competitors_found = ", ".join(self.flatten_competitors(detected_competitors))
+            competitors_found = ", ".join(detected_competitors)
 
             # Couldn't we do sum(error_spans)?
             combined_error_spans = []
@@ -288,52 +255,55 @@ class CompetitorCheck(Validator):
         else:
             return PassResult()
 
-    def _inference_local(self, model_input: Dict) -> List[Dict[str, float]]:
+    def _inference_local(self, model_input: Dict) -> List[List[NERDetection]]:
         """Local inference method to detect and anonymize competitor names.
-        Returns an array of dictionaries that map a competitor name to a probability."""
-        text = model_input["text"]
-        competitors = model_input["competitors"]
+        Returns a list per sentence with NER detections."""
+        texts = model_input["texts"]
+        competitor_types = model_input["competitor_types"]
 
-        if isinstance(text, str):
-            text = [text,]
+        if isinstance(texts, str):
+            texts = [texts,]
 
-        # Frustratingly, `TypeError: TextInputSequence must be str` appears when we try
-        # to use either an array of text OR an array of hypotheses.  They should both
-        # be supported according to the tokenizer documentation.  When we use Bart
-        # Tokenizer and the paired sentence approach we instead get an invalid
-        # tokenization, so we need to do a bunch of parallel calls.
-        # tokens = self.tokenizer.encode( ... ) for each candidate and sentence.
-        # That's NOT performant, so we instead use a pipeline which lets us do a
-        # parallel call at the cost of not being able to tweak the hypothesis.
-        # See https://github.com/huggingface/transformers/issues/7735
-        predictions = self.model(text, competitors, multi_label=True)
+        all_scores = []
+        for sentence in texts:
+            detections = self.model.predict_entities(
+                sentence,
+                competitor_types,
+                threshold=CompetitorCheck.DETECTION_THRESHOLD
+            )
+            sentence_scores = list()
+            for d in detections:
+                sentence_scores.append(NERDetection(
+                    name=d['text'],
+                    entity_type=d['label'],
+                    start=d['start'],
+                    end=d['end'],
+                    probability=d['score']
+                ))
+            all_scores.append(sentence_scores)
+        return all_scores
 
-        competitor_scores = []  # An array of dictionaries, one per sentence.
-        for p in predictions:
-            competitor_scores.append({k: v for k, v in zip(p['labels'], p['scores'])})
-        return competitor_scores
-
-    def _inference_remote(self, model_input: Dict) -> List[Dict[str, float]]:
+    def _inference_remote(self, model_input: Dict) -> List[List[NERDetection]]:
         """Remote inference method for a hosted ML endpoint."""
         
-        text = model_input["text"]
-        competitors = model_input["competitors"]
+        texts = model_input["texts"]
+        competitor_types = model_input["competitor_types"]
 
-        if isinstance(text, str):
-            text = [text]
+        if isinstance(texts, str):
+            texts = [texts,]
 
         request_body = {
             "inputs": [
                 {
                     "name": "text",
-                    "shape": [len(text)],
-                    "data": text,
+                    "shape": [len(texts)],
+                    "data": texts,
                     "datatype": "BYTES"
                 },
                 {
-                    "name": "competitors",
-                    "shape": [len(competitors)],
-                    "data": competitors,
+                    "name": "competitor_types",
+                    "shape": [len(competitor_types)],
+                    "data": competitor_types,
                     "datatype": "BYTES"
                 }
             ]
@@ -349,48 +319,38 @@ class CompetitorCheck(Validator):
 
         return ner_entities
 
+    @staticmethod
     def compute_error_spans(
-            self,
             sentences: List[str],
-            detected_competitors: List[Dict[str, float]]
-    ) -> List[List[ErrorSpan]]:
+            competitors: List[str],
+            detected_competitors: List[List[NERDetection]],
+            threshold: float,
+    ) -> Tuple[List[str], List[List[ErrorSpan]]]:
         """Given a list of sentences and the probability of each competitor,
-        generate a list of error spans for each sentence.  If a sentence is thought to
-        have a competitor, but it can't be exactly matched to a word, the error span
-        will highlight the whole sentence.
+        generate a list of error spans for each sentence.
         """
         assert len(sentences) == len(detected_competitors)
 
+        detections = set()
+
+        competitors = set([c.lower() for c in competitors])
+
         all_error_spans: List[List[ErrorSpan]] = []
-        for idx, sentence in enumerate(sentences):
-            dc = detected_competitors[idx]
+        for sentence, ner_detections in zip(sentences, detected_competitors):
             error_spans: List[ErrorSpan] = list()
-            for competitor, probability in dc.items():
-                if probability < self.threshold:
+            for detection in ner_detections:
+                if detection.probability < threshold:
                     continue
-                instances_found = 0
-                start_idx = 0
-                while sentence.find(competitor, start_idx) > -1:
-                    instances_found += 1
-                    start_idx = sentence.find(competitor, start_idx)
-                    end_idx = start_idx + len(competitor)
-                    error_spans.append(ErrorSpan(
-                        start=start_idx,
-                        end=end_idx,
-                        reason=f"Found '{competitor}' (Confidence: {probability})",
-                    ))
-                    start_idx = end_idx
-                if instances_found == 0:
-                    # We have evidence that there's a mention in this sentence but can't
-                    # find and replace the exact position.
-                    error_spans.append(ErrorSpan(
-                        start=0,
-                        end=len(sentence),
-                        reason=f"Detected possible mention of '{competitor}' "
-                               f"(Confidence: {probability})",
-                    ))
+                if detection.name.lower() not in competitors:
+                    continue
+                detections.add(detection.name)
+                error_spans.append(ErrorSpan(
+                    start=detection.start,
+                    end=detection.end,
+                    reason=f"Found '{detection.name}' (Confidence: {detection.probability})",
+                ))
             all_error_spans.append(error_spans)
-        return all_error_spans
+        return list(detections), all_error_spans
 
     # Replace mentions of competitors with [COMPETITOR]
     @staticmethod
@@ -411,20 +371,3 @@ class CompetitorCheck(Validator):
                     sentence = sentence[:e.start] + "[COMPETITOR]" + sentence[e.end:]
                 filtered_outputs.append(sentence)
         return filtered_outputs
-    
-    def flatten_competitors(
-            self,
-            detected_competitors: List[Dict[str, float]]
-    ) -> List[str]:
-        """Given the detections from every sentence, make a list of the unique
-        competitors detected.
-
-        This _does_ do another iteration over the probabilities that we could remove if
-        we tracked the data separately, but it's not an expensive operation and makes
-        for cleaner code."""
-        list_of_competitors_found = set()
-        for sentence_dc in detected_competitors:
-            for competitor, probability in sentence_dc.items():
-                if probability > self.threshold:
-                    list_of_competitors_found.add(competitor)
-        return list(list_of_competitors_found)

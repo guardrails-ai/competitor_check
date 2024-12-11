@@ -31,10 +31,9 @@ competitors_list = [
 def test_pass():
     v = CompetitorCheck(
         competitors=[
-            "JP Morgan Chase",
-            "Alphabet Incorporated",
-            "Google Inc",
-            "Apple Inc",
+            "Chase",
+            "Google",
+            "Apple",
         ],
         use_local=True,
         threshold=0.5,
@@ -42,7 +41,7 @@ def test_pass():
     )
     assert isinstance(v.validate("This must be fine."), PassResult)
     assert isinstance(v.validate("I use Bing."), PassResult)
-    assert isinstance(v.validate("My cat chased my dog."), PassResult)
+    assert isinstance(v.validate("My cat chased my dog, which is funny because his name is Chase."), PassResult)
     assert isinstance(v.validate("I baked an apple pie."), PassResult)
     assert isinstance(v.validate("I searched the internet for info."), PassResult)
 
@@ -50,16 +49,17 @@ def test_pass():
 def test_fail():
     v = CompetitorCheck(
         competitors=[
-            "JP Morgan Chase",
-            "Alphabet Incorporated",
-            "Google Inc",
-            "Apple Inc",
+            "Chase",
+            "Google",
+            "Apple",
         ],
         use_local=True,
         threshold=0.5,
         on_fail='noop',
     )
-    assert isinstance(v.validate("I bought an iPhone."), FailResult)
-    assert isinstance(v.validate("I use Google Photos."), FailResult)
+    assert isinstance(v.validate("I bought an Apple iPhone."), FailResult)
+    assert isinstance(v.validate("Android is Google's phone offering."), FailResult)
     assert isinstance(v.validate("My mortgage comes from Chase."), FailResult)
-    assert isinstance(v.validate("I googled how to bake a pie on my Apple MacBook."), FailResult)
+    res = v.validate("I googled how to bake a pie on my Apple MacBook.")
+    print(res.outcome)
+    assert isinstance(res, FailResult)
