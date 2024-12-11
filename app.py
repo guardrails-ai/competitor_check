@@ -27,13 +27,12 @@ class OutputResponse(BaseModel):
     modelversion: str
     outputs: List[InferenceData]
 
-
 class CompetitorCheck:
     model_name = "en_core_web_trf"
     nlp = spacy.load(model_name)
 
     @classmethod
-    def infer(cls, text_vals: list[str], competitors: set[str]):
+    def infer(cls, text_vals, competitors):
         outputs = []
         competitors = [c.lower() for c in competitors]
         for idx, text in enumerate(text_vals):
@@ -58,10 +57,6 @@ class CompetitorCheck:
         )
 
         return output_data.model_dump()
-    
-
-
-
 
 @app.post("/validate", response_model=OutputResponse)
 async def competitor_check(input_request: InputRequest):
@@ -76,3 +71,12 @@ async def competitor_check(input_request: InputRequest):
         raise HTTPException(status_code=400, detail="Invalid input format")
 
     return CompetitorCheck.infer(text_vals, competitors)
+
+# Sagemaker specific endpoints
+@app.get("/ping")
+async def healtchcheck():
+    return {"status": "ok"}
+
+@app.post("/invocations", response_model=OutputResponse)
+async def competitor_check_sagemaker(input_request: InputRequest):
+    return await competitor_check(input_request)
