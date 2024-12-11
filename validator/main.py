@@ -69,10 +69,11 @@ class CompetitorCheck(Validator):
         example: "USPS" and "US Postal Service" and "United States Postal Service" or
         if the competitor is an extremely common term like 'Apple'.
 
-        sentence_splitter_language: Defaults to "en" and should generally not be
-        changed.  The underlying model is focused on English but may work, at least
-        partially, on other languages.  Languages outside of English are untested and
-        unsupported.
+        ignore_locations (bool): Defaults to 'False'.  If true, will discard named
+        entities that are recognized as location mentions. This can help to discard
+        false positives for companies which happen to share names with directions,
+        like Northwestern, but can be problematic for synecdoche, for example:
+        "Chicago beat Philadelphia in the 2016 world cup."
     """
 
     def __init__(
@@ -80,6 +81,7 @@ class CompetitorCheck(Validator):
             competitors: List[str],
             threshold: float = 0.5,
             enable_direct_match_prefilter: bool = False,
+            ignore_locations: bool = False,
             sentence_splitter_language: str = "en",
             on_fail: Optional[Callable] = None,
             **kwargs,
@@ -109,11 +111,70 @@ class CompetitorCheck(Validator):
         self.threshold = threshold
         self.competitors = competitors
         self.prefilter = enable_direct_match_prefilter
+        self.ignore_locations = ignore_locations
         self.sentence_splitter = SentenceSplitter(language=sentence_splitter_language)
-        self.model = pipeline(
-            "zero-shot-classification",
-            "facebook/bart-large-mnli"
-        )
+        self.model = pipeline("ner", "dslim/bert-base-NER")
+
+    def postprocess_ner_results(
+            self,
+            sentences: List[str],
+            results: List[List[Dict[str, Any]]]
+    ) -> List[List[Dict[str, Any]]]:
+        """Given a batch of NER outputs of the following form:
+
+        [  # For each sentence...
+          [  # An array of NER matches...
+            { with 'entity', 'score', 'index', 'word', 'start', and 'end' },
+          ],
+        ],
+
+        combine the 'B-ORG' and 'I-ORG' entities into appropriate substrings.  Score
+        will be the 'max' matching score of any inside a continuous block of entities.
+
+        Outputs [ # For each sentence,
+        [ # An array of matches...
+          {
+            'start': idx,
+            'end': idx,
+            'score': float
+            'text': extracted text from the original sentence.
+          }
+        ]
+        """
+        reformatted_results = list()
+        for sentence, ner_result in zip(sentences, results):
+            sentence_entities = list()
+            accumulator = None
+            for r in ner_result:
+                if r['entity'] in {'B-PER', 'B-ORG', 'B-LOC', 'B-MISC'}:
+                    # Push our last entity to the pile before starting a new one:
+                    if accumulator is not None:
+                        sentence_entities.append(accumulator)
+                    if self.ignore_locations and r['entity'].endswith('LOC'):
+                        accumulator = None
+                        continue
+                    accumulator = {
+                        'start': r['start'],
+                        'end': r['end'],
+                        'score': r['score'],
+                    }
+                elif accumulator and r['entity'] in {'I-PER', 'I-ORG', 'I-LOC', 'I-MISC'}:
+                    accumulator['end'] = r['end']
+                    accumulator['score'] = \
+                        max(r['score'], accumulator['score'])
+                else:
+                    # We've encountered something flagged that is none of the above.
+                    if accumulator is not None:
+                        sentence_entities.append(accumulator)
+                    accumulator = None
+            # We may have a dangling entity accumulator:
+            if accumulator is not None:
+                sentence_entities.append(accumulator)
+            # Postprocess this sentence and add the text.
+            for ent in sentence_entities:
+                ent['text'] = sentence[ent['start']:ent['end']]
+            reformatted_results.append(sentence_entities)
+        return reformatted_results
 
     def _chunking_function(self, chunk: str) -> List[str]:
         """
@@ -295,7 +356,7 @@ class CompetitorCheck(Validator):
     ) -> List[List[ErrorSpan]]:
         """Given a list of sentences and the probability of each competitor,
         generate a list of error spans for each sentence.  If a sentence is thought to
-        have a competitor but it can't be exactly matched to a word, the error span
+        have a competitor, but it can't be exactly matched to a word, the error span
         will highlight the whole sentence.
         """
         assert len(sentences) == len(detected_competitors)
