@@ -1,9 +1,9 @@
-import nltk
+import nltk  # noqa
 import spacy
 
 def load_nltk_data():
     import re
-    import nltk
+    import nltk  # noqa
     from importlib.metadata import version
 
     nltk_version = version("nltk")
