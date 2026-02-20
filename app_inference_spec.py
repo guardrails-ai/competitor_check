@@ -2,7 +2,17 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from typing import List, Tuple
 import spacy
+import logging
 from models_host.base_inference_spec import BaseInferenceSpec
+
+logger = logging.getLogger("competitor-check")
+
+try:
+    spacy.require_gpu()
+except Exception as e:
+    logger.warning(
+        f"Failed to enable GPU ({device}), falling back to CPU: {e}"
+    )
 
 class InferenceData(BaseModel):
     name: str
