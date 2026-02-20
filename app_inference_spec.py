@@ -11,7 +11,7 @@ try:
     spacy.require_gpu()
 except Exception as e:
     logger.warning(
-        f"Failed to enable GPU ({device}), falling back to CPU: {e}"
+        f"Failed to enable GPU, falling back to CPU: {e}"
     )
 
 class InferenceData(BaseModel):
